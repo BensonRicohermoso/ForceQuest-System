@@ -3,505 +3,542 @@ from tkinter import ttk, messagebox
 import math
 import time
 import threading
-
-# Optional scientific plotting libs — check at runtime and show helpful error
-try:
-	import numpy as np
-except Exception:
-	np = None
-
-try:
-	import matplotlib.pyplot as plt
-except Exception:
-	plt = None
+import numpy as np
+import matplotlib.pyplot as plt
 
 
 class ForceQuestApp:
-	def __init__(self, root):
-		self.root = root
-		self.root.title("⚙️ ForceQuest — Physics Adventure Mode")
-		self.root.geometry("1300x850")  # Adjusted height for more widgets
-		self.root.configure(bg="#1e1e2f")
-		self.setup_ui()
-
-	def setup_ui(self):
-		title = tk.Label(self.root, text="FORCEQUEST", fg="#00e6e6",
-						 bg="#1e1e2f", font=("Consolas", 28, "bold"))
-		title.pack(pady=10)
-
-		subtitle = tk.Label(self.root, text="The Fun Physics Simulator — Work, Energy & Power",
-							fg="#bbb", bg="#1e1e2f", font=("Segoe UI", 12, "italic"))
-		subtitle.pack()
-
-		frame = tk.Frame(self.root, bg="#1e1e2f")
-		frame.pack(pady=20)
-
-		# Left input panel
-		left = tk.Frame(frame, bg="#252540", bd=2, relief="ridge")
-		left.grid(row=0, column=0, padx=15, sticky="n")
-
-		# Existing Inputs
-		tk.Label(left, text="Scenario:", bg="#252540", fg="white").grid(row=0, column=0, sticky="w", pady=5)
-		self.scenario = ttk.Combobox(left, values=["Pushing Object", "Lifting Object", "Inclined Plane"], state="readonly")
-		self.scenario.grid(row=0, column=1, pady=5)
-		self.scenario.current(0)
-
-		inputs = [("Force (N)", "force"), ("Distance (m)", "distance"),
-				  ("Mass (kg)", "mass"), ("Angle (°)", "angle"),
-				  ("Friction μ", "mu")]
-		self.entries = {}
-		for i, (label, key) in enumerate(inputs, start=1):
-			tk.Label(left, text=label, bg="#252540", fg="white").grid(row=i, column=0, sticky="w", pady=5)
-			e = tk.Entry(left, width=10)
-			e.grid(row=i, column=1, pady=5)
-			self.entries[key] = e
-
-		# New Inputs for added features
-		row_base = len(inputs) + 1
-
-		# Surface Material Selector
-		tk.Label(left, text="Surface Material:", bg="#252540", fg="white").grid(row=row_base, column=0, sticky="w", pady=5)
-		self.surface_material = ttk.Combobox(left,
-											 values=["Ice", "Tile", "Wood", "Concrete", "Sand"], state="readonly")
-		self.surface_material.grid(row=row_base, column=1, pady=5)
-		self.surface_material.current(2)  # Default Wood
-
-		# Object Shape Options
-		tk.Label(left, text="Object Shape:", bg="#252540", fg="white").grid(row=row_base + 1, column=0, sticky="w", pady=5)
-		self.object_shape = ttk.Combobox(left, values=["Box", "Cylinder", "Sphere"], state="readonly")
-		self.object_shape.grid(row=row_base + 1, column=1, pady=5)
-		self.object_shape.current(0)  # Default Box
-
-		# Force Application Angle
-		tk.Label(left, text="Force Angle:", bg="#252540", fg="white").grid(row=row_base + 2, column=0, sticky="w", pady=5)
-		self.force_angle_mode = ttk.Combobox(left, values=["Horizontal", "Upward", "Downward"], state="readonly")
-		self.force_angle_mode.grid(row=row_base + 2, column=1, pady=5)
-		self.force_angle_mode.current(0)  # Default Horizontal
-
-		# Push Mode
-		tk.Label(left, text="Push Mode:", bg="#252540", fg="white").grid(row=row_base + 3, column=0, sticky="w", pady=5)
-		self.push_mode = ttk.Combobox(left, values=["Constant Force", "Sudden Push", "Increasing Force"], state="readonly")
-		self.push_mode.grid(row=row_base + 3, column=1, pady=5)
-		self.push_mode.current(0)  # Default Constant Force
-
-		# Buttons
-		tk.Button(left, text="▶ Run Simulation", bg="#00e6e6", fg="black", font=("Segoe UI", 10, "bold"),
-				  command=self.run_simulation).grid(row=row_base + 4, column=0, columnspan=2, pady=10)
-		tk.Button(left, text="📊 Show Energy Graph", bg="#98c379", fg="black",
-				  font=("Segoe UI", 10, "bold"), command=self.show_plot).grid(row=row_base + 5, column=0, columnspan=2, pady=5)
-
-		# Center canvas for animation
-		center = tk.Frame(frame, bg="#1e1e2f")
-		center.grid(row=0, column=1, padx=20)
-
-		self.canvas = tk.Canvas(center, width=600, height=400, bg="white", highlightthickness=2)
-		self.canvas.pack()
-
-		self.object = self.canvas.create_rectangle(50, 330, 100, 380, fill="#ff6f61")
-
-		self.feedback = tk.Label(center, text="", bg="#1e1e2f", fg="#aaffaa", font=("Consolas", 12, "bold"))
-		self.feedback.pack(pady=10)
-
-		# Label for Change in Kinetic Energy
-		self.delta_ke_label = tk.Label(center, text="", bg="#1e1e2f", fg="#ffaa00", font=("Consolas", 12, "bold"))
-		self.delta_ke_label.pack(pady=5)
-
-		self.solution_box = tk.Text(center, width=80, height=11, bg="#111", fg="#98c379",
-								   font=("Consolas", 11), wrap="word")
-		self.solution_box.pack(pady=10)
-
-		# Instruction side
-		right = tk.Frame(frame, bg="#252540", bd=2, relief="ridge")
-		right.grid(row=0, column=2, padx=15, sticky="n")
-		tk.Label(right, text="🧭 HOW TO PLAY", bg="#252540", fg="#00e6e6", font=("Segoe UI", 12, "bold")).pack(pady=5)
-		tk.Label(right, text=(
-			"1️ Choose scenario.\n"
-			"2️ Enter known values.\n"
-			"3️ Leave one blank to auto-calc.\n"
-			"4️ Select Surface Material, Object Shape, Force Angle, and Push Mode.\n"
-			"5️ Click ▶ to simulate.\n"
-			"💡 Watch the object move or stay still depending on your force!\n"
-			"\nThemes & Effects:\n"
-			"• Surface influences friction (μ).\n"
-			"• Object shape affects sliding vs rolling resistance.\n"
-			"• Force angle changes normal force → friction.\n"
-			"• Push mode affects animation force application.\n"
-			"\nExamples surface μ:\n"
-			"Ice=0.1, Tile=0.3, Wood=0.5, Concrete=0.7, Sand=0.9\n"
-			"\nObject shapes:\n"
-			"Box=sliding, Cylinder=rolling, Sphere=very low resistance\n"
-			"\nForce Angles:\n"
-			"Horizontal, Upward, Downward\n"
-			"\nPush Modes:\n"
-			"Constant, Sudden, Increasing"
-		), bg="#252540", fg="white", justify="left", wraplength=280).pack(padx=10, pady=10)
-
-	def run_simulation(self):
-		try:
-			F = float(self.entries["force"].get()) if self.entries["force"].get() else None
-			d = float(self.entries["distance"].get()) if self.entries["distance"].get() else None
-			m = float(self.entries["mass"].get()) if self.entries["mass"].get() else None
-			angle = float(self.entries["angle"].get()) if self.entries["angle"].get() else 0
-		except ValueError:
-			messagebox.showerror("Input Error", "Enter valid numbers!")
-			return
-
-		if d is None:
-			messagebox.showerror("Input Error", "Distance is required for simulation!")
-			return
-
-		g = 9.81
-		scenario = self.scenario.get()
-
-		surface_mu_map = {
-			"Ice": 0.1,
-			"Tile": 0.3,
-			"Wood": 0.5,
-			"Concrete": 0.7,
-			"Sand": 0.9,
-		}
-		selected_surface = self.surface_material.get()
-		base_mu = surface_mu_map.get(selected_surface, 0.5)
-
-		shape_friction_factor = {
-			"Box": 1.0,
-			"Cylinder": 0.15,
-			"Sphere": 0.05,
-		}
-		selected_shape = self.object_shape.get()
-		mu = base_mu * shape_friction_factor.get(selected_shape, 1.0)
-
-		force_angle_mode = self.force_angle_mode.get()
-		force_angle_degrees = 0
-		if force_angle_mode == "Horizontal":
-			force_angle_degrees = 0
-		elif force_angle_mode == "Upward":
-			force_angle_degrees = 30
-		elif force_angle_mode == "Downward":
-			force_angle_degrees = -30
-
-		solution = ""
-
-		if m is None:
-			if scenario == "Lifting Object" and F is not None:
-				m = F / g
-				solution += f"Mass auto-calculated: m = F / g = {m:.2f} kg\n\n"
-
-			elif scenario == "Inclined Plane" and F is not None:
-				sin_theta = math.sin(math.radians(angle))
-				if sin_theta == 0:
-					messagebox.showerror("Input Error", "Inclined angle cannot be 0 for mass calculation.")
-					return
-				m = F / (g * sin_theta)
-				solution += f"Mass auto-calculated: m = F / (g × sin θ) = {m:.2f} kg\n\n"
-
-			elif scenario == "Pushing Object" and F is not None and mu != 0:
-				m = F / (mu * g)
-				solution += f"Mass auto-calculated: m = F / (μ × g) = {m:.2f} kg\n\n"
-
-			else:
-				messagebox.showerror("Input Error", "Mass is required!")
-				return
-
-		F_applied = F if F is not None else 0
-		weight_force = m * g
-
-		Fn = weight_force - F_applied * math.sin(math.radians(force_angle_degrees))
-		Fn = max(Fn, 0)
-
-		F_friction = mu * Fn
-
-		if scenario == "Lifting Object":
-			F_req = m * g
-			formula = "F_required = m × g"
-		elif scenario == "Inclined Plane":
-			F_req = m * g * math.sin(math.radians(angle))
-			formula = "F_required = m × g × sin(θ)"
-		else:
-			F_req = F_friction
-			formula = "F_required = μ × Normal Force"
-
-		if F is None:
-			F = F_req
-			solution += f"Force auto-calculated using formula:\n{formula}\nF = {F:.2f} N\n\n"
-
-		if F < F_req:
-			self.feedback.config(text="⚠️ Not enough force! Object won’t move.", fg="#ff8080")
-			self.delta_ke_label.config(text="")
-			self.solution_box.delete(1.0, tk.END)
-			self.solution_box.insert(tk.END,
-									solution + f"Required force is {F_req:.2f} N but applied force is {F:.2f} N.\nNo movement occurs.")
-			return
-
-		net_work = (F - F_req) * d
-		ke = net_work
-		v = math.sqrt(2 * abs(ke) / m) if m and ke > 0 else 0
-		power_interval = 3
-		p = net_work / power_interval if net_work > 0 else 0
-
-		self.feedback.config(text=f"✅ Net Work={net_work:.2f}J | KE={ke:.2f}J | Power={p:.2f}W", fg="#00e6e6")
-		self.delta_ke_label.config(text=f"🔥 Change in Kinetic Energy: ΔKE = {ke:.2f} J", fg="#ffaa00")
-
-		solution += (
-			f"Force required calculation:\n{formula}\n"
-			f"Step 1: Net Work = (F - F_req) × d = ({F:.2f} - {F_req:.2f}) × {d:.2f} = {net_work:.2f} J\n"
-			f"Step 2: ΔKE = Net Work = {ke:.2f} J (Work-Energy Theorem)\n"
-			f"Step 3: Velocity v = √(2 × ΔKE / m) = √(2 × {ke:.2f} / {m:.2f}) = {v:.2f} m/s\n"
-			f"Step 4: Power = Net Work / time = {net_work:.2f} / {power_interval} = {p:.2f} W\n"
-			f"\nNormal Force (Fn) adjusted for force angle: {Fn:.2f} N\n"
-			f"Friction coefficient (μ) adjusted for surface and shape: {mu:.2f}\n"
-		)
-		self.solution_box.delete(1.0, tk.END)
-		self.solution_box.insert(tk.END, solution)
-
-		self.update_background(mu, scenario, angle)
-		push_mode = self.push_mode.get()
-		threading.Thread(target=self.animate_motion,
-						 args=(scenario, d, angle, force_angle_degrees, push_mode),
-						 daemon=True).start()
-
-	def update_background(self, mu, scenario, angle):
-		self.canvas.delete("all")
-
-		base_x = 100
-		base_y = 350
-
-		if scenario == "Pushing Object":
-			if mu <= 0.15:
-				color = "#b3e5fc"
-				surface = "❄️ ICE"
-			elif mu <= 0.35:
-				color = "#f0f0f0"
-				surface = "🏠 TILE"
-			elif mu <= 0.6:
-				color = "#deb887"
-				surface = "🪵 WOOD"
-			elif mu <= 0.8:
-				color = "#a9a9a9"
-				surface = "🏗️ CONCRETE"
-			else:
-				color = "#e69f00"
-				surface = "🌋 SAND"
-
-			self.canvas.create_rectangle(0, 350, 600, 400, fill=color)
-			self.canvas.create_text(500, 20, text=f"Surface: {surface}", fill="black", font=("Consolas", 12, "bold"))
-
-			shape = self.object_shape.get()
-
-			if shape == "Box":
-				self.object = self.canvas.create_rectangle(base_x, 300, base_x + 50, 350, fill="#ff6f61")
-			elif shape == "Cylinder":
-				self.object_rect = self.canvas.create_rectangle(base_x, 310, base_x + 50, 350, fill="#ff6f61")
-				self.object_oval_top = self.canvas.create_oval(base_x, 300, base_x + 50, 320, fill="#ff6f61")
-				self.object_oval_bottom = self.canvas.create_oval(base_x, 340, base_x + 50, 360, fill="#ff6f61")
-				self.object = [self.object_rect, self.object_oval_top, self.object_oval_bottom]
-			elif shape == "Sphere":
-				radius = 25
-				cx = base_x + radius
-				cy = 325
-				self.object = self.canvas.create_oval(cx - radius, cy - radius, cx + radius, cy + radius, fill="#ff6f61")
-
-		elif scenario == "Lifting Object":
-			self.canvas.create_rectangle(0, 350, 600, 400, fill="#9ecae1")
-			self.canvas.create_text(500, 20, text="🏗️ Lifting Crane", fill="black", font=("Consolas", 12, "bold"))
-			self.object = self.canvas.create_rectangle(280, 300, 330, 350, fill="#f4a261")
-
-		elif scenario == "Inclined Plane":
-			incline_height = math.tan(math.radians(angle)) * 600
-			self.canvas.create_polygon(0, 400, 600, 400, 600, 400 - incline_height,
-									   fill="#c7e9b4")
-			self.canvas.create_text(500, 20, text=f"⛰️ Incline θ={angle}°", fill="black", font=("Consolas", 12, "bold"))
-			obj_y = 400 - (math.tan(math.radians(angle)) * 100) - 50
-
-			base_x = 100
-			shape = self.object_shape.get()
-			if shape == "Box":
-				self.object = self.canvas.create_rectangle(base_x, obj_y, base_x + 50, obj_y + 50, fill="#d95f02")
-			elif shape == "Cylinder":
-				rect = self.canvas.create_rectangle(base_x, obj_y + 10, base_x + 50, obj_y + 50, fill="#d95f02")
-				oval_top = self.canvas.create_oval(base_x, obj_y, base_x + 50, obj_y + 30, fill="#d95f02")
-				oval_bottom = self.canvas.create_oval(base_x, obj_y + 30, base_x + 50, obj_y + 60, fill="#d95f02")
-				self.object = [rect, oval_top, oval_bottom]
-			elif shape == "Sphere":
-				radius = 25
-				cx = base_x + radius
-				cy = obj_y + 25
-				self.object = self.canvas.create_oval(cx - radius, cy - radius, cx + radius, cy + radius, fill="#d95f02")
-
-			self.draw_force_vectors(scenario, angle)
-
-		else:
-			self.canvas.delete("all")
-
-	def draw_force_vectors(self, scenario, angle):
-		if scenario != "Inclined Plane":
-			return
-
-		coords = None
-		if isinstance(self.object, list):
-			coords = self.canvas.coords(self.object[0])
-		else:
-			coords = self.canvas.coords(self.object)
-
-		x_center = (coords[0] + coords[2]) / 2
-		y_bottom = coords[3]
-
-		length_factor = 60
-
-		# Gravity (Fg)
-		Fg_x_end = x_center
-		Fg_y_end = y_bottom + length_factor
-		self.canvas.create_line(x_center, y_bottom, Fg_x_end, Fg_y_end, arrow=tk.LAST, fill="green", width=3)
-		self.canvas.create_text(Fg_x_end + 10, Fg_y_end, text="Gravity (Fg)", fill="green", font=("Consolas", 10, "bold"), anchor="w")
-
-		incline_angle = math.radians(angle)
-
-		# Normal Force (Fn)
-		Fn_dx = length_factor * math.cos(incline_angle)
-		Fn_dy = -length_factor * math.sin(incline_angle)
-		Fn_x_end = x_center + Fn_dx
-		Fn_y_end = y_bottom + Fn_dy
-		self.canvas.create_line(x_center, y_bottom, Fn_x_end, Fn_y_end, arrow=tk.LAST, fill="orange", width=3)
-		label_x = Fn_x_end + 10 * math.cos(incline_angle)
-		label_y = Fn_y_end - 10 * math.sin(incline_angle)
-		self.canvas.create_text(label_x, label_y, text="Normal Force (Fn)", fill="orange", font=("Consolas", 10, "bold"), anchor="w")
-
-		# Net Force (Fnet)
-		Fnet_dx = length_factor * math.cos(incline_angle)
-		Fnet_dy = length_factor * math.sin(incline_angle)
-		Fnet_x_end = x_center + Fnet_dx
-		Fnet_y_end = y_bottom + Fnet_dy
-		self.canvas.create_line(x_center, y_bottom, Fnet_x_end, Fnet_y_end, arrow=tk.LAST, fill="#00e6e6", width=3)
-		label_x = Fnet_x_end + 10 * math.cos(incline_angle)
-		label_y = Fnet_y_end + 10 * math.sin(incline_angle)
-		self.canvas.create_text(label_x, label_y, text="Net Force (Fnet)", fill="#00e6e6", font=("Consolas", 10, "bold"), anchor="w")
-
-	def animate_motion(self, scenario, distance, angle, force_angle_degrees, push_mode):
-		steps = max(1, int(distance * 10))
-		for step in range(steps):
-			move_val = 0
-			if push_mode == "Constant Force":
-				move_val = 5
-			elif push_mode == "Sudden Push":
-				move_val = 15 if step < 5 else 0
-			elif push_mode == "Increasing Force":
-				move_val = 5 * (step / steps)
-
-			if scenario == "Lifting Object":
-				self._move_object(0, -move_val)
-			elif scenario == "Inclined Plane":
-				dx = move_val * math.cos(math.radians(angle))
-				dy = -move_val * math.sin(math.radians(angle))
-				self._move_object(dx, dy)
-			else:
-				dx = move_val * math.cos(math.radians(force_angle_degrees))
-				dy = -move_val * math.sin(math.radians(force_angle_degrees))
-				self._move_object(dx, dy)
-
-			self.canvas.update()
-			time.sleep(0.03)
-
-		self.draw_ke_line()
-
-	def _move_object(self, dx, dy):
-		if isinstance(self.object, list):
-			for part in self.object:
-				self.canvas.move(part, dx, dy)
-		else:
-			self.canvas.move(self.object, dx, dy)
-
-	def draw_ke_line(self):
-		self.canvas.delete("ke_line")
-		self.canvas.delete("ke_text")
-		coords = None
-		if isinstance(self.object, list):
-			xs = []
-			ys = []
-			for part in self.object:
-				c = self.canvas.coords(part)
-				xs += c[::2]
-				ys += c[1::2]
-			x1, x2 = min(xs), max(xs)
-			y1, y2 = min(ys), max(ys)
-			coords = [x1, y1, x2, y2]
-		else:
-			coords = self.canvas.coords(self.object)
-
-		x1 = coords[0]
-		x2 = coords[2]
-		y = coords[3] + 20
-
-		self.canvas.create_line(x1, y, x2, y, fill="#ffaa00", width=3, tags="ke_line")
-		ke_text = self.delta_ke_label.cget("text")
-		if isinstance(ke_text, str) and ke_text.startswith("🔥 Change in Kinetic Energy: ΔKE = "):
-			ke_val = ke_text.split("=")[1].strip().split(" ")[0]
-		else:
-			ke_val = "0.00"
-
-		self.canvas.create_text((x1 + x2) / 2, y + 15, text=f"ΔKE = {ke_val} J", fill="#ffaa00", font=("Consolas", 12, "bold"), tags="ke_text")
-
-	def show_plot(self):
-		try:
-			d = float(self.entries["distance"].get())
-			F = float(self.entries["force"].get())
-			m = float(self.entries["mass"].get())
-			angle = float(self.entries["angle"].get()) if self.entries["angle"].get() else 0
-			surface_mu_map = {
-				"Ice": 0.1,
-				"Tile": 0.3,
-				"Wood": 0.5,
-				"Concrete": 0.7,
-				"Sand": 0.9,
-			}
-			selected_surface = self.surface_material.get()
-			base_mu = surface_mu_map.get(selected_surface, 0.5)
-			shape_friction_factor = {
-				"Box": 1.0,
-				"Cylinder": 0.15,
-				"Sphere": 0.05,
-			}
-			selected_shape = self.object_shape.get()
-			mu = base_mu * shape_friction_factor.get(selected_shape, 1.0)
-			scenario = self.scenario.get()
-		except Exception:
-			messagebox.showerror("Error", "Enter all required values (Force, Distance, Mass) first!")
-			return
-
-		g = 9.81
-		force_angle_mode = self.force_angle_mode.get()
-		force_angle_degrees = 0
-		if force_angle_mode == "Horizontal":
-			force_angle_degrees = 0
-		elif force_angle_mode == "Upward":
-			force_angle_degrees = 30
-		elif force_angle_mode == "Downward":
-			force_angle_degrees = -30
-
-		weight_force = m * g
-		F_applied = F
-
-		Fn = weight_force - F_applied * math.sin(math.radians(force_angle_degrees))
-		Fn = max(Fn, 0)
-		F_friction = mu * Fn
-
-		if scenario == "Lifting Object":
-			F_req = m * g
-		elif scenario == "Inclined Plane":
-			F_req = m * g * math.sin(math.radians(angle))
-		else:
-			F_req = F_friction
-
-		x = np.linspace(0, d, 50)
-		net_work = (F - F_req) * x
-		plt.plot(x, net_work, color="#00e6e6", linewidth=2)
-		plt.title("Net Work / ΔKE vs Distance")
-		plt.xlabel("Distance (m)")
-		plt.ylabel("Net Work / ΔKE (J)")
-		plt.grid(True)
-		plt.show()
+    def __init__(self, root):
+        self.root = root
+        self.root.title("⚙️ ForceQuest 5.0 — Physics Adventure Mode")
+        self.root.geometry("1400x900")
+        self.root.configure(bg="#1e1e2f")
+        self.is_animating = False
+        self.animation_thread = None
+        self.sim_data = {'distance': [], 'work': [], 'ke': []}
+        self.setup_ui()
+
+    def setup_ui(self):
+        title = tk.Label(self.root, text="FORCEQUEST 5.0", fg="#00e6e6",
+                        bg="#1e1e2f", font=("Consolas", 28, "bold"))
+        title.pack(pady=10)
+
+        subtitle = tk.Label(self.root, text="The Fun Physics Simulator — Work, Energy & Power",
+                           fg="#bbb", bg="#1e1e2f", font=("Segoe UI", 12, "italic"))
+        subtitle.pack()
+
+        main_frame = tk.Frame(self.root, bg="#1e1e2f")
+        main_frame.pack(pady=20, fill=tk.BOTH, expand=True)
+
+        # Left Panel
+        left = tk.Frame(main_frame, bg="#252540", bd=2, relief="ridge")
+        left.grid(row=0, column=0, padx=15, sticky="nsew")
+
+        tk.Label(left, text="Scenario:", bg="#252540", fg="white", font=("Segoe UI", 10, "bold")).grid(
+            row=0, column=0, sticky="w", pady=5, padx=5)
+        self.scenario = ttk.Combobox(left, values=["Pushing Object", "Lifting Object", "Inclined Plane"], 
+                                    state="readonly", width=18)
+        self.scenario.grid(row=0, column=1, pady=5, padx=5)
+        self.scenario.current(0)
+
+        inputs = [("Force (N)", "force"), ("Distance (m)", "distance"),
+                 ("Mass (kg)", "mass"), ("Angle (°)", "angle"), ("Friction μ", "mu")]
+        self.entries = {}
+        for i, (label, key) in enumerate(inputs, start=1):
+            tk.Label(left, text=label, bg="#252540", fg="white", font=("Segoe UI", 10)).grid(
+                row=i, column=0, sticky="w", pady=5, padx=5)
+            e = tk.Entry(left, width=15, font=("Segoe UI", 10))
+            e.grid(row=i, column=1, pady=5, padx=5)
+            self.entries[key] = e
+
+        row_base = len(inputs) + 1
+
+        tk.Label(left, text="Surface Material:", bg="#252540", fg="white", font=("Segoe UI", 10)).grid(
+            row=row_base, column=0, sticky="w", pady=5, padx=5)
+        self.surface_material = ttk.Combobox(left, width=18,
+            values=["Ice", "Tile", "Wood", "Concrete", "Sand"], state="readonly")
+        self.surface_material.grid(row=row_base, column=1, pady=5, padx=5)
+        self.surface_material.current(2)
+
+        tk.Label(left, text="Object Shape:", bg="#252540", fg="white", font=("Segoe UI", 10)).grid(
+            row=row_base + 1, column=0, sticky="w", pady=5, padx=5)
+        self.object_shape = ttk.Combobox(left, width=18, values=["Box", "Cylinder", "Sphere"], state="readonly")
+        self.object_shape.grid(row=row_base + 1, column=1, pady=5, padx=5)
+        self.object_shape.current(0)
+
+        tk.Label(left, text="Force Angle:", bg="#252540", fg="white", font=("Segoe UI", 10)).grid(
+            row=row_base + 2, column=0, sticky="w", pady=5, padx=5)
+        self.force_angle_mode = ttk.Combobox(left, width=18, values=["Horizontal", "Upward", "Downward"], 
+                                            state="readonly")
+        self.force_angle_mode.grid(row=row_base + 2, column=1, pady=5, padx=5)
+        self.force_angle_mode.current(0)
+
+        tk.Label(left, text="Push Mode:", bg="#252540", fg="white", font=("Segoe UI", 10)).grid(
+            row=row_base + 3, column=0, sticky="w", pady=5, padx=5)
+        self.push_mode = ttk.Combobox(left, width=18, 
+            values=["Constant Force", "Sudden Push", "Increasing Force"], state="readonly")
+        self.push_mode.grid(row=row_base + 3, column=1, pady=5, padx=5)
+        self.push_mode.current(0)
+
+        tk.Label(left, text="Animation Speed:", bg="#252540", fg="white", font=("Segoe UI", 10)).grid(
+            row=row_base + 4, column=0, sticky="w", pady=5, padx=5)
+        self.anim_speed = ttk.Scale(left, from_=0.5, to=3.0, orient="horizontal")
+        self.anim_speed.set(1.0)
+        self.anim_speed.grid(row=row_base + 4, column=1, pady=5, padx=5, sticky="ew")
+
+        btn_frame = tk.Frame(left, bg="#252540")
+        btn_frame.grid(row=row_base + 5, column=0, columnspan=2, pady=10)
+        
+        self.run_btn = tk.Button(btn_frame, text="▶ Run Simulation", bg="#00e6e6", fg="black", 
+                                font=("Segoe UI", 10, "bold"), command=self.run_simulation, width=20)
+        self.run_btn.pack(pady=5)
+        
+        tk.Button(btn_frame, text="⏹ Stop", bg="#ff6b6b", fg="white",
+                 font=("Segoe UI", 10, "bold"), command=self.stop_simulation, width=20).pack(pady=5)
+        
+        tk.Button(btn_frame, text="📊 Show Energy Graph", bg="#98c379", fg="black",
+                 font=("Segoe UI", 10, "bold"), command=self.show_plot, width=20).pack(pady=5)
+        
+        tk.Button(btn_frame, text="🔄 Reset", bg="#61afef", fg="black",
+                 font=("Segoe UI", 10, "bold"), command=self.reset_simulation, width=20).pack(pady=5)
+
+        # Center Canvas
+        center = tk.Frame(main_frame, bg="#1e1e2f")
+        center.grid(row=0, column=1, padx=20, sticky="nsew")
+
+        self.canvas = tk.Canvas(center, width=700, height=450, bg="white", highlightthickness=2,
+                               highlightbackground="#00e6e6")
+        self.canvas.pack()
+
+        self.feedback = tk.Label(center, text="⚡ Ready to simulate!", bg="#1e1e2f", fg="#aaffaa", 
+                                font=("Consolas", 12, "bold"))
+        self.feedback.pack(pady=5)
+
+        self.delta_ke_label = tk.Label(center, text="", bg="#1e1e2f", fg="#ffaa00", 
+                                       font=("Consolas", 11, "bold"))
+        self.delta_ke_label.pack(pady=5)
+
+        solution_frame = tk.Frame(center, bg="#1e1e2f")
+        solution_frame.pack(pady=10, fill=tk.BOTH, expand=True)
+        
+        scrollbar = tk.Scrollbar(solution_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.solution_box = tk.Text(solution_frame, width=85, height=12, bg="#111", fg="#98c379",
+                                   font=("Consolas", 10), wrap="word", yscrollcommand=scrollbar.set)
+        self.solution_box.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=self.solution_box.yview)
+
+        # Right Panel
+        right = tk.Frame(main_frame, bg="#252540", bd=2, relief="ridge")
+        right.grid(row=0, column=2, padx=15, sticky="nsew")
+        
+        tk.Label(right, text="🧭 HOW TO PLAY", bg="#252540", fg="#00e6e6", 
+                font=("Segoe UI", 13, "bold")).pack(pady=10)
+        
+        instructions = tk.Text(right, width=35, height=35, bg="#252540", fg="white", 
+                              font=("Segoe UI", 9), wrap="word", bd=0)
+        instructions.pack(padx=10, pady=5)
+        instructions.insert("1.0", """1️⃣ Choose scenario
+2️⃣ Enter values (leave ONE blank)
+3️⃣ Customize parameters
+4️⃣ Click ▶ Run Simulation
+
+Surface Friction (μ):
+• Ice: 0.1 (slippery)
+• Tile: 0.3 (smooth)
+• Wood: 0.5 (moderate)
+• Concrete: 0.7 (rough)
+• Sand: 0.9 (very rough)
+
+Object Shapes:
+• Box: Full friction
+• Cylinder: 15% (rolling)
+• Sphere: 5% (minimal)
+
+Force Angles:
+• Horizontal: Standard
+• Upward: Reduces normal
+• Downward: Increases normal
+
+Push Modes:
+• Constant: Steady
+• Sudden: Quick impulse
+• Increasing: Gradual ramp
+""")
+        instructions.config(state="disabled")
+
+        main_frame.columnconfigure(1, weight=1)
+        main_frame.rowconfigure(0, weight=1)
+
+        self.object = None
+        self.reset_canvas()
+
+    def reset_canvas(self):
+        self.canvas.delete("all")
+        self.canvas.create_rectangle(0, 400, 700, 450, fill="#ddd", outline="")
+        self.canvas.create_text(350, 425, text="Ground Level", fill="#666", font=("Consolas", 10))
+        self.object = None
+
+    def get_physics_params(self):
+        try:
+            F = float(self.entries["force"].get()) if self.entries["force"].get() else None
+            d = float(self.entries["distance"].get()) if self.entries["distance"].get() else None
+            m = float(self.entries["mass"].get()) if self.entries["mass"].get() else None
+            angle = float(self.entries["angle"].get()) if self.entries["angle"].get() else 0
+            user_mu = float(self.entries["mu"].get()) if self.entries["mu"].get() else None
+        except ValueError:
+            messagebox.showerror("Input Error", "Please enter valid numbers!")
+            return None
+
+        if d is None or d <= 0:
+            messagebox.showerror("Input Error", "Distance must be positive!")
+            return None
+
+        surface_mu_map = {"Ice": 0.1, "Tile": 0.3, "Wood": 0.5, "Concrete": 0.7, "Sand": 0.9}
+        shape_friction_factor = {"Box": 1.0, "Cylinder": 0.15, "Sphere": 0.05}
+        
+        base_mu = surface_mu_map.get(self.surface_material.get(), 0.5)
+        mu = base_mu * shape_friction_factor.get(self.object_shape.get(), 1.0)
+        
+        if user_mu is not None:
+            mu = user_mu
+
+        force_angle_map = {"Horizontal": 0, "Upward": 30, "Downward": -30}
+        force_angle_degrees = force_angle_map.get(self.force_angle_mode.get(), 0)
+
+        return {
+            'F': F, 'd': d, 'm': m, 'angle': angle, 'mu': mu,
+            'force_angle': force_angle_degrees,
+            'scenario': self.scenario.get(),
+            'shape': self.object_shape.get(),
+            'surface': self.surface_material.get(),
+            'push_mode': self.push_mode.get()
+        }
+
+    def calculate_physics(self, params):
+        g = 9.81
+        scenario = params['scenario']
+        F, d, m, angle, mu = params['F'], params['d'], params['m'], params['angle'], params['mu']
+        force_angle = params['force_angle']
+        
+        solution = ""
+        
+        if m is None:
+            if scenario == "Lifting Object" and F is not None:
+                m = F / g
+                solution += f"✓ Mass: m = F/g = {m:.2f} kg\n\n"
+            elif scenario == "Inclined Plane" and F is not None:
+                sin_theta = math.sin(math.radians(angle))
+                if sin_theta == 0:
+                    messagebox.showerror("Error", "Angle cannot be 0°!")
+                    return None
+                m = F / (g * sin_theta)
+                solution += f"✓ Mass: m = {m:.2f} kg\n\n"
+            elif scenario == "Pushing Object" and F is not None and mu != 0:
+                m = F / (mu * g)
+                solution += f"✓ Mass: m = {m:.2f} kg\n\n"
+            else:
+                messagebox.showerror("Error", "Cannot calculate mass!")
+                return None
+
+        params['m'] = m
+
+        weight = m * g
+        F_vertical = (F if F else 0) * math.sin(math.radians(force_angle))
+        
+        if scenario == "Inclined Plane":
+            Fn = weight * math.cos(math.radians(angle))
+        else:
+            Fn = weight - F_vertical
+        Fn = max(Fn, 0)
+
+        if scenario == "Lifting Object":
+            F_req = weight
+            formula = "F_req = m × g"
+        elif scenario == "Inclined Plane":
+            F_req = weight * math.sin(math.radians(angle)) + mu * Fn
+            formula = f"F_req = m×g×sin({angle}°) + μ×Fn"
+        else:
+            F_req = mu * Fn
+            formula = "F_req = μ × Fn"
+
+        if F is None:
+            F = F_req * 1.2
+            solution += f"✓ Force: F = {F:.2f} N\n\n"
+
+        params['F'] = F
+
+        if F < F_req:
+            solution += f"❌ INSUFFICIENT FORCE!\n\n"
+            solution += f"Applied: {F:.2f} N\nRequired: {F_req:.2f} N\n"
+            return {'moves': False, 'solution': solution, 'params': params}
+
+        net_force = F - F_req
+        net_work = net_force * d
+        ke_final = max(net_work, 0)
+        v_final = math.sqrt(2 * ke_final / m) if m > 0 and ke_final > 0 else 0
+        
+        time_interval = 3.0 / self.anim_speed.get()
+        power = net_work / time_interval if time_interval > 0 else 0
+
+        solution += f"{'='*60}\n"
+        solution += f"PHYSICS CALCULATION\n{'='*60}\n\n"
+        solution += f"📋 Given:\n"
+        solution += f"   m = {m:.2f} kg | F = {F:.2f} N | d = {d:.2f} m\n"
+        solution += f"   μ = {mu:.3f}\n\n"
+        solution += f"⚖️ Forces:\n"
+        solution += f"   Weight = {weight:.2f} N\n"
+        solution += f"   Normal = {Fn:.2f} N\n"
+        solution += f"   {formula} = {F_req:.2f} N\n"
+        solution += f"   Net = {net_force:.2f} N ✓\n\n"
+        solution += f"⚡ Energy:\n"
+        solution += f"   Net Work = {net_work:.2f} J\n"
+        solution += f"   ΔKE = {ke_final:.2f} J\n"
+        solution += f"   v = {v_final:.2f} m/s\n"
+        solution += f"   Power = {power:.2f} W\n"
+        solution += f"{'='*60}\n"
+
+        return {
+            'moves': True, 'solution': solution, 'params': params,
+            'F_req': F_req, 'net_work': net_work, 'ke_final': ke_final,
+            'v_final': v_final, 'power': power, 'Fn': Fn
+        }
+
+    def run_simulation(self):
+        if self.is_animating:
+            messagebox.showwarning("Busy", "Already running!")
+            return
+
+        params = self.get_physics_params()
+        if not params:
+            return
+
+        results = self.calculate_physics(params)
+        if not results:
+            return
+
+        self.solution_box.delete(1.0, tk.END)
+        self.solution_box.insert(tk.END, results['solution'])
+
+        if not results['moves']:
+            self.feedback.config(text="⚠️ NOT MOVING - Insufficient Force!", fg="#ff6b6b")
+            self.delta_ke_label.config(text="")
+            return
+
+        self.feedback.config(
+            text=f"✅ Work={results['net_work']:.2f}J | v={results['v_final']:.2f}m/s | P={results['power']:.2f}W",
+            fg="#00ff00"
+        )
+        self.delta_ke_label.config(text=f"🔥 ΔKE = {results['ke_final']:.2f} J", fg="#ffaa00")
+
+        self.is_animating = True
+        self.run_btn.config(state="disabled")
+        self.update_background(params)
+        
+        self.animation_thread = threading.Thread(target=self.animate_motion, args=(results,), daemon=True)
+        self.animation_thread.start()
+
+    def stop_simulation(self):
+        self.is_animating = False
+        self.run_btn.config(state="normal")
+        self.feedback.config(text="⏹ Stopped", fg="#ffaa00")
+
+    def reset_simulation(self):
+        self.stop_simulation()
+        self.reset_canvas()
+        self.solution_box.delete(1.0, tk.END)
+        self.feedback.config(text="⚡ Ready!", fg="#aaffaa")
+        self.delta_ke_label.config(text="")
+        self.sim_data = {'distance': [], 'work': [], 'ke': []}
+
+    def update_background(self, params):
+        self.canvas.delete("all")
+        scenario = params['scenario']
+        angle = params['angle']
+        mu = params['mu']
+        shape = params['shape']
+
+        if scenario == "Pushing Object":
+            if mu <= 0.15:
+                color, label = "#b3e5fc", "❄️ ICE"
+            elif mu <= 0.35:
+                color, label = "#f0f0f0", "🏠 TILE"
+            elif mu <= 0.6:
+                color, label = "#deb887", "🪵 WOOD"
+            elif mu <= 0.8:
+                color, label = "#a9a9a9", "🏗️ CONCRETE"
+            else:
+                color, label = "#e69f00", "🏖️ SAND"
+
+            self.canvas.create_rectangle(0, 400, 700, 450, fill=color, outline="")
+            self.canvas.create_text(600, 420, text=f"{label}", fill="black", font=("Consolas", 11, "bold"))
+            self.draw_object(50, 350, shape, "#ff6f61")
+
+        elif scenario == "Lifting Object":
+            self.canvas.create_rectangle(0, 400, 700, 450, fill="#9ecae1", outline="")
+            self.canvas.create_line(340, 50, 340, 400, fill="#666", width=4)
+            self.canvas.create_text(600, 420, text="🏗️ CRANE", fill="black", font=("Consolas", 11, "bold"))
+            self.draw_object(315, 350, shape, "#f4a261")
+
+        elif scenario == "Inclined Plane":
+            incline_height = min(math.tan(math.radians(angle)) * 700, 350)
+            self.canvas.create_polygon(0, 450, 700, 450, 700, 450 - incline_height,
+                                      fill="#c7e9b4", outline="black", width=2)
+            self.canvas.create_text(600, 420, text=f"⛰️ θ={angle:.1f}°", fill="black", font=("Consolas", 11, "bold"))
+            
+            obj_y = 450 - (math.tan(math.radians(angle)) * 100) - 50
+            self.draw_object(50, obj_y, shape, "#d95f02")
+            self.draw_force_vectors(params)
+
+    def draw_object(self, x, y, shape, color):
+        if shape == "Box":
+            self.object = self.canvas.create_rectangle(x, y, x + 50, y + 50, fill=color, outline="black", width=2)
+        elif shape == "Cylinder":
+            rect = self.canvas.create_rectangle(x, y + 10, x + 50, y + 50, fill=color, outline="black", width=2)
+            oval_top = self.canvas.create_oval(x, y, x + 50, y + 20, fill=color, outline="black", width=2)
+            oval_bottom = self.canvas.create_oval(x, y + 40, x + 50, y + 60, fill=color, outline="black", width=2)
+            self.object = [oval_bottom, rect, oval_top]
+        elif shape == "Sphere":
+            radius = 25
+            cx, cy = x + radius, y + 25
+            self.object = self.canvas.create_oval(cx - radius, cy - radius, cx + radius, cy + radius,
+                                                 fill=color, outline="black", width=2)
+
+    def draw_force_vectors(self, params):
+        if params['scenario'] != "Inclined Plane":
+            return
+
+        if isinstance(self.object, list):
+            coords = self.canvas.coords(self.object[1])
+        else:
+            coords = self.canvas.coords(self.object)
+        
+        x_center = (coords[0] + coords[2]) / 2
+        y_center = (coords[1] + coords[3]) / 2
+
+        angle = params['angle']
+        length = 60
+        angle_rad = math.radians(angle)
+
+        self.canvas.create_line(x_center, y_center, x_center, y_center + length,
+                               arrow=tk.LAST, fill="green", width=3)
+        self.canvas.create_text(x_center + 30, y_center + length, text="Fg", fill="green", font=("Consolas", 9, "bold"))
+
+        fn_dx = -length * math.sin(angle_rad)
+        fn_dy = -length * math.cos(angle_rad)
+        self.canvas.create_line(x_center, y_center, x_center + fn_dx, y_center + fn_dy,
+                               arrow=tk.LAST, fill="orange", width=3)
+        self.canvas.create_text(x_center + fn_dx - 15, y_center + fn_dy, text="Fn", fill="orange", font=("Consolas", 9, "bold"))
+
+        f_dx = length * math.cos(angle_rad)
+        f_dy = -length * math.sin(angle_rad)
+        self.canvas.create_line(x_center, y_center, x_center + f_dx, y_center + f_dy,
+                               arrow=tk.LAST, fill="#00e6e6", width=3)
+        self.canvas.create_text(x_center + f_dx + 20, y_center + f_dy, text="F", fill="#00e6e6", font=("Consolas", 9, "bold"))
+
+    def animate_motion(self, results):
+        params = results['params']
+        scenario = params['scenario']
+        distance = params['d']
+        angle = params['angle']
+        push_mode = params['push_mode']
+        
+        steps = int(distance * 15)
+        speed_factor = 1.0 / self.anim_speed.get()
+        
+        for step in range(steps):
+            if not self.is_animating:
+                break
+                
+            if push_mode == "Constant Force":
+                move_val = 4
+            elif push_mode == "Sudden Push":
+                move_val = 20 if step < 5 else 0.5
+            elif push_mode == "Increasing Force":
+                move_val = 2 + (step / steps) * 6
+            
+            if scenario == "Lifting Object":
+                self._move_object(0, -move_val)
+            elif scenario == "Inclined Plane":
+                dx = move_val * math.cos(math.radians(angle))
+                dy = -move_val * math.sin(math.radians(angle))
+                self._move_object(dx, dy)
+            else:
+                force_angle = params['force_angle']
+                dx = move_val * math.cos(math.radians(force_angle))
+                dy = -move_val * math.sin(math.radians(force_angle))
+                self._move_object(dx, dy)
+            
+            self.canvas.update()
+            time.sleep(0.02 * speed_factor)
+        
+        self.draw_ke_indicator()
+        self.is_animating = False
+        self.run_btn.config(state="normal")
+
+    def _move_object(self, dx, dy):
+        if isinstance(self.object, list):
+            for part in self.object:
+                self.canvas.move(part, dx, dy)
+        else:
+            self.canvas.move(self.object, dx, dy)
+
+    def draw_ke_indicator(self):
+        if isinstance(self.object, list):
+            all_coords = []
+            for part in self.object:
+                all_coords.extend(self.canvas.coords(part))
+            x1, x2 = min(all_coords[::2]), max(all_coords[::2])
+            y2 = max(all_coords[1::2])
+        else:
+            coords = self.canvas.coords(self.object)
+            x1, x2, y2 = coords[0], coords[2], coords[3]
+        
+        y = y2 + 20
+        self.canvas.create_line(x1, y, x2, y, fill="#ffaa00", width=3, tags="ke_line")
+        
+        ke_text = self.delta_ke_label.cget("text")
+        if "=" in ke_text:
+            ke_val = ke_text.split("=")[1].strip().split()[0]
+            self.canvas.create_text((x1 + x2) / 2, y + 15, text=f"ΔKE={ke_val}J",
+                                   fill="#ffaa00", font=("Consolas", 11, "bold"), tags="ke_text")
+
+    def show_plot(self):
+        try:
+            params = self.get_physics_params()
+            if not params:
+                return
+                
+            results = self.calculate_physics(params)
+            if not results or not results['moves']:
+                messagebox.showerror("Error", "Run a successful simulation first!")
+                return
+            
+            d = params['d']
+            net_force = results['F_req']
+            F = params['F']
+            
+            x = np.linspace(0, d, 50)
+            work = (F - net_force) * x
+            ke = work
+            
+            plt.figure(figsize=(10, 6))
+            plt.plot(x, work, 'b-', linewidth=2, label='Net Work')
+            plt.plot(x, ke, 'r--', linewidth=2, label='Kinetic Energy')
+            plt.title('Energy vs Distance', fontsize=14, fontweight='bold')
+            plt.xlabel('Distance (m)', fontsize=12)
+            plt.ylabel('Energy (J)', fontsize=12)
+            plt.grid(True, alpha=0.3)
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not generate graph: {str(e)}")
 
 
 if __name__ == "__main__":
-	root = tk.Tk()
-	app = ForceQuestApp(root)
-	root.mainloop()
+    root = tk.Tk()
+    app = ForceQuestApp(root)
+    root.mainloop()
