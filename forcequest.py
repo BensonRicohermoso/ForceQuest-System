@@ -5,7 +5,7 @@ import time
 import threading
 import numpy as np
 import matplotlib.pyplot as plt
-import random # Make sure to add this import at the top of your file
+import random 
 
 class ForceQuestQuiz:
     def __init__(self, master):
@@ -26,7 +26,7 @@ class ForceQuestQuiz:
         
         self.style = ttk.Style()
         self.style.configure("Quiz.TButton", font=("Segoe UI", 12, "bold"), padding=10, 
-                            background="#3e82e5", foreground="black")
+                             background="#3e82e5", foreground="black")
 
         self.setup_quiz_ui()
         self.load_question()
@@ -40,7 +40,7 @@ class ForceQuestQuiz:
                  bg="#1e1e2f", fg="#00e6e6").pack()
         
         self.score_label = tk.Label(header_frame, text="Score: 0", font=("Segoe UI", 12, "bold"), 
-                                    bg="#1e1e2f", fg="#98c379")
+                                     bg="#1e1e2f", fg="#98c379")
         self.score_label.pack()
 
         # --- Question Area ---
@@ -48,8 +48,8 @@ class ForceQuestQuiz:
         question_frame.pack(pady=20, padx=20, fill='both', expand=True)
 
         self.question_label = tk.Label(question_frame, text="Question text goes here...", 
-                                       font=("Segoe UI", 16), bg="#252540", fg="white", 
-                                       wraplength=700)
+                                        font=("Segoe UI", 16), bg="#252540", fg="white", 
+                                        wraplength=700)
         self.question_label.pack(pady=10)
 
         # --- Choices Area ---
@@ -162,21 +162,27 @@ QUIZ_QUESTIONS = [
 class ForceQuestApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("⚙️ ForceQuest 5.0 — Physics Adventure Mode")
-        self.root.geometry("1400x900")
+        self.root.title("⚙️ ForceQuest — Physics Adventure Mode")
+        self.root.geometry("1400x1000")
         self.root.configure(bg="#1e1e2f")
         self.is_animating = False
         self.animation_thread = None
         self.sim_data = {'distance': [], 'work': [], 'ke': []}
+        
+        # Timer attributes
+        self.is_timer_running = False
+        self.sim_start_time = 0.0
+        self.timer_id = None
+        
         self.setup_ui()
 
     def setup_ui(self):
-        title = tk.Label(self.root, text="FORCEQUEST 5.0", fg="#00e6e6",
-                        bg="#1e1e2f", font=("Consolas", 28, "bold"))
+        title = tk.Label(self.root, text="FORCEQUEST", fg="#00e6e6",
+                         bg="#1e1e2f", font=("Consolas", 28, "bold"))
         title.pack(pady=10)
 
         subtitle = tk.Label(self.root, text="The Fun Physics Simulator — Work, Energy & Power",
-                           fg="#bbb", bg="#1e1e2f", font=("Segoe UI", 12, "italic"))
+                            fg="#bbb", bg="#1e1e2f", font=("Segoe UI", 12, "italic"))
         subtitle.pack()
 
         main_frame = tk.Frame(self.root, bg="#1e1e2f")
@@ -189,12 +195,12 @@ class ForceQuestApp:
         tk.Label(left, text="Scenario:", bg="#252540", fg="white", font=("Segoe UI", 10, "bold")).grid(
             row=0, column=0, sticky="w", pady=5, padx=5)
         self.scenario = ttk.Combobox(left, values=["Pushing Object", "Lifting Object", "Inclined Plane"], 
-                                    state="readonly", width=18)
+                                     state="readonly", width=18)
         self.scenario.grid(row=0, column=1, pady=5, padx=5)
         self.scenario.current(0)
 
         inputs = [("Force (N)", "force"), ("Distance (m)", "distance"),
-                 ("Mass (kg)", "mass"), ("Angle (°)", "angle"), ("Friction μ", "mu")]
+                  ("Mass (kg)", "mass"), ("Angle (°)", "angle"), ("Friction μ", "mu")]
         self.entries = {}
         for i, (label, key) in enumerate(inputs, start=1):
             tk.Label(left, text=label, bg="#252540", fg="white", font=("Segoe UI", 10)).grid(
@@ -221,7 +227,7 @@ class ForceQuestApp:
         tk.Label(left, text="Force Angle:", bg="#252540", fg="white", font=("Segoe UI", 10)).grid(
             row=row_base + 2, column=0, sticky="w", pady=5, padx=5)
         self.force_angle_mode = ttk.Combobox(left, width=18, values=["Horizontal", "Upward", "Downward"], 
-                                            state="readonly")
+                                             state="readonly")
         self.force_angle_mode.grid(row=row_base + 2, column=1, pady=5, padx=5)
         self.force_angle_mode.current(0)
 
@@ -242,18 +248,18 @@ class ForceQuestApp:
         btn_frame.grid(row=row_base + 5, column=0, columnspan=2, pady=10)
     
         self.run_btn = tk.Button(btn_frame, text="▶ Run Simulation", bg="#00e6e6", fg="black", 
-                                font=("Segoe UI", 10, "bold"), command=self.run_simulation, width=20)
+                                 font=("Segoe UI", 10, "bold"), command=self.run_simulation, width=20)
         self.run_btn.pack(pady=5)
         
         tk.Button(btn_frame, text="⏹ Stop", bg="#ff6b6b", fg="white",
-                 font=("Segoe UI", 10, "bold"), command=self.stop_simulation, width=20).pack(pady=5)
+                  font=("Segoe UI", 10, "bold"), command=self.stop_simulation, width=20).pack(pady=5)
         
         tk.Button(btn_frame, text="📊 Show Energy Graph", bg="#98c379", fg="black",
-                 font=("Segoe UI", 10, "bold"), command=self.show_plot, width=20).pack(pady=5)
+                  font=("Segoe UI", 10, "bold"), command=self.show_plot, width=20).pack(pady=5)
         
         tk.Button(btn_frame, text="🔄 Reset", bg="#61afef", fg="black",
-                 font=("Segoe UI", 10, "bold"), command=self.reset_simulation, width=20).pack(pady=5)
-        # INSERT THIS NEW BUTTON BELOW:
+                  font=("Segoe UI", 10, "bold"), command=self.reset_simulation, width=20).pack(pady=5)
+        
         tk.Button(btn_frame, text="✅ Start Physics Quiz", bg="#ffaa00", fg="black",
                   font=("Segoe UI", 10, "bold"), command=self.start_quiz, width=20, height = 5).pack(pady=5)
         
@@ -261,16 +267,25 @@ class ForceQuestApp:
         center = tk.Frame(main_frame, bg="#1e1e2f")
         center.grid(row=0, column=1, padx=20, sticky="nsew")
 
+        # --- UPDATED: Single Timer Label (Top Right) ---
+        timer_frame = tk.Frame(center, bg="#1e1e2f")
+        timer_frame.pack(fill='x', padx=10, pady=(0, 5))
+        
+        tk.Label(timer_frame, text="Sim Time:", bg="#1e1e2f", fg="#61afef", font=("Consolas", 11, "bold")).pack(side=tk.LEFT)
+        self.timer_label = tk.Label(timer_frame, text="00:00.00", bg="#1e1e2f", fg="#ffaa00", font=("Consolas", 11, "bold"))
+        self.timer_label.pack(side=tk.LEFT, padx=(5, 0)) 
+        # --------------------------------------------------
+
         self.canvas = tk.Canvas(center, width=700, height=450, bg="white", highlightthickness=2,
                                highlightbackground="#00e6e6")
         self.canvas.pack()
 
         self.feedback = tk.Label(center, text="⚡ Ready to simulate!", bg="#1e1e2f", fg="#aaffaa", 
-                                font=("Consolas", 12, "bold"))
+                                 font=("Consolas", 12, "bold"))
         self.feedback.pack(pady=5)
 
         self.delta_ke_label = tk.Label(center, text="", bg="#1e1e2f", fg="#ffaa00", 
-                                       font=("Consolas", 11, "bold"))
+                                        font=("Consolas", 11, "bold"))
         self.delta_ke_label.pack(pady=5)
 
         solution_frame = tk.Frame(center, bg="#1e1e2f")
@@ -279,8 +294,8 @@ class ForceQuestApp:
         scrollbar = tk.Scrollbar(solution_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        self.solution_box = tk.Text(solution_frame, width=85, height=12, bg="#111", fg="#98c379",
-                                   font=("Consolas", 10), wrap="word", yscrollcommand=scrollbar.set)
+        self.solution_box = tk.Text(solution_frame, width=85, height=20, bg="#111", fg="#98c379",
+                                     font=("Consolas", 10), wrap="word", yscrollcommand=scrollbar.set)
         self.solution_box.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.config(command=self.solution_box.yview)
 
@@ -289,10 +304,10 @@ class ForceQuestApp:
         right.grid(row=0, column=2, padx=15, sticky="nsew")
         
         tk.Label(right, text="🧭 HOW TO PLAY", bg="#252540", fg="#00e6e6", 
-                font=("Segoe UI", 13, "bold")).pack(pady=10)
+                 font=("Segoe UI", 13, "bold")).pack(pady=10)
         
         instructions = tk.Text(right, width=35, height=35, bg="#252540", fg="white", 
-                              font=("Segoe UI", 9), wrap="word", bd=0)
+                               font=("Segoe UI", 9), wrap="word", bd=0)
         instructions.pack(padx=10, pady=5)
         instructions.insert("1.0", """1️ Choose scenario
 2️ Enter values (leave ONE blank)
@@ -328,6 +343,8 @@ Push Modes:
 
         self.object = None
         self.reset_canvas()
+        
+        self.solution_box.tag_configure("center", justify='center') 
     
     def reset_canvas(self):
         self.canvas.delete("all")
@@ -377,28 +394,28 @@ Push Modes:
         F, d, m, angle, mu = params['F'], params['d'], params['m'], params['angle'], params['mu']
         force_angle = params['force_angle']
         
-        solution = ""
+        solution_data = "" # Renamed to avoid confusion with final output
         
         if m is None:
             if scenario == "Lifting Object" and F is not None:
                 m = F / g
-                solution += f"✓ Mass: m = F/g = {m:.2f} kg\n\n"
+                solution_data += f"✓ Mass: m = F/g = {m:.2f} kg\n\n"
             elif scenario == "Inclined Plane" and F is not None:
                 sin_theta = math.sin(math.radians(angle))
                 if sin_theta == 0:
                     messagebox.showerror("Error", "Angle cannot be 0°!")
                     return None
                 m = F / (g * sin_theta)
-                solution += f"✓ Mass: m = {m:.2f} kg\n\n"
+                solution_data += f"✓ Mass: m = {m:.2f} kg\n\n"
             elif scenario == "Pushing Object" and F is not None and mu != 0:
                 m = F / (mu * g)
-                solution += f"✓ Mass: m = {m:.2f} kg\n\n"
+                solution_data += f"✓ Mass: m = {m:.2f} kg\n\n"
             else:
                 messagebox.showerror("Error", "Cannot calculate mass!")
                 return None
 
         params['m'] = m
-
+    
         weight = m * g
         F_vertical = (F if F else 0) * math.sin(math.radians(force_angle))
         
@@ -420,45 +437,81 @@ Push Modes:
 
         if F is None:
             F = F_req * 1.2
-            solution += f"✓ Force: F = {F:.2f} N\n\n"
+            solution_data += f"✓ Force: F = {F:.2f} N\n\n"
 
         params['F'] = F
 
         if F < F_req:
-            solution += f"❌ INSUFFICIENT FORCE!\n\n"
-            solution += f"Applied: {F:.2f} N\nRequired: {F_req:.2f} N\n"
-            return {'moves': False, 'solution': solution, 'params': params}
+            solution_data += f"❌ INSUFFICIENT FORCE!\n\n"
+            solution_data += f"Applied: {F:.2f} N\nRequired: {F_req:.2f} N\n"
+            return {'moves': False, 'solution': solution_data, 'params': params}
 
-        net_force = F - F_req
+        # Calculate Net Force in the direction of motion
+        F_parallel_applied = F * math.cos(math.radians(force_angle)) if scenario == "Pushing Object" else F
+        F_parallel_gravity = weight * math.sin(math.radians(angle)) if scenario == "Inclined Plane" else 0
+        F_friction = mu * Fn if scenario != "Lifting Object" else 0
+        
+        # Net Force calculation adjusted for different scenarios
+        if scenario == "Lifting Object":
+            net_force = F - weight
+        elif scenario == "Inclined Plane":
+            # Assuming force F is applied parallel to the incline
+            net_force = F - F_parallel_gravity - F_friction
+        else: # Pushing Object
+            net_force = F_parallel_applied - F_friction
+            
+        # Ensure positive net force for motion/work calculation (or zero if insufficient)
+        if net_force < 0:
+             net_force = 0
+             # If net force is zero but F > F_req, we assume motion just started
+             # For a simple simulation, we'll ensure we move if F > F_req
+             if F > F_req and scenario != "Lifting Object" and scenario != "Inclined Plane":
+                 net_force = F - F_req
+
         net_work = net_force * d
-        ke_final = max(net_work, 0)
+        ke_final = max(net_work, 0) # Work-Energy Theorem: W_net = ΔKE
         v_final = math.sqrt(2 * ke_final / m) if m > 0 and ke_final > 0 else 0
         
         time_interval = 3.0 / self.anim_speed.get()
         power = net_work / time_interval if time_interval > 0 else 0
 
-        solution += f"{'='*60}\n"
-        solution += f"PHYSICS CALCULATION\n{'='*60}\n\n"
-        solution += f"📋 Given:\n"
-        solution += f"   m = {m:.2f} kg | F = {F:.2f} N | d = {d:.2f} m\n"
-        solution += f"   μ = {mu:.3f}\n\n"
-        solution += f"⚖️ Forces:\n"
-        solution += f"   Weight = {weight:.2f} N\n"
-        solution += f"   Normal = {Fn:.2f} N\n"
-        solution += f"   {formula} = {F_req:.2f} N\n"
-        solution += f"   Net = {net_force:.2f} N ✓\n\n"
-        solution += f"⚡ Energy:\n"
-        solution += f"   Net Work = {net_work:.2f} J\n"
-        solution += f"   ΔKE = {ke_final:.2f} J\n"
-        solution += f"   v = {v_final:.2f} m/s\n"
-        solution += f"   Power = {power:.2f} W\n"
-        solution += f"{'='*60}\n"
+        solution_data += f"📋 Given:\n"
+        solution_data += f"   m = {m:.2f} kg | F = {F:.2f} N | d = {d:.2f} m\n"
+        solution_data += f"   μ = {mu:.3f}\n\n"
+        solution_data += f"⚖️ Forces:\n"
+        solution_data += f"   Weight = {weight:.2f} N\n"
+        solution_data += f"   Normal = {Fn:.2f} N\n"
+        solution_data += f"   {formula} = {F_req:.2f} N\n"
+        solution_data += f"   Net = {net_force:.2f} N ✓\n\n"
+        solution_data += f"⚡ Energy:\n"
+        solution_data += f"   Net Work = {net_work:.2f} J\n"
+        solution_data += f"   ΔKE = {ke_final:.2f} J\n"
+        solution_data += f"   v = {v_final:.2f} m/s\n"
+        solution_data += f"   Power = {power:.2f} W\n"
 
         return {
-            'moves': True, 'solution': solution, 'params': params,
-            'F_req': F_req, 'net_work': net_work, 'ke_final': ke_final,
-            'v_final': v_final, 'power': power, 'Fn': Fn
+        'moves': True, 'solution': solution_data, 'params': params,
+        'F_req': F_req, 'net_work': net_work, 'ke_final': ke_final,
+        'v_final': v_final, 'power': power, 'Fn': Fn
         }
+        
+    def start_timer(self):
+        if not self.is_timer_running:
+            return
+            
+        elapsed_time = time.time() - self.sim_start_time
+        
+        # Format time as MM:SS.cc (minutes:seconds.hundredths)
+        minutes = int(elapsed_time // 60)
+        seconds = int(elapsed_time % 60)
+        hundredths = int((elapsed_time % 1) * 100)
+        
+        time_str = f"{minutes:02d}:{seconds:02d}.{hundredths:02d}"
+        self.timer_label.config(text=time_str)
+        
+        # Schedule the next update after 50 milliseconds (20 times per second)
+        self.timer_id = self.root.after(50, self.start_timer)
+
 
     def run_simulation(self):
         if self.is_animating:
@@ -474,30 +527,60 @@ Push Modes:
             return
 
         self.solution_box.delete(1.0, tk.END)
-        self.solution_box.insert(tk.END, results['solution'])
-
+        
+        # Combine the header/footer with the solution data
+        full_output = (
+            f"{'='*60}\n"
+            f"PHYSICS CALCULATION\n"
+            f"{'='*60}\n\n"
+            f"{results['solution']}"
+            f"{'='*60}\n"
+        )
+        
+        # Insert the full output block
+        self.solution_box.insert(tk.END, full_output)
+        
+        # Apply the 'center' tag to the entire inserted text block
+        self.solution_box.tag_add("center", "1.0", tk.END)
+        
         if not results['moves']:
             self.feedback.config(text="⚠️ NOT MOVING - Insufficient Force!", fg="#ff6b6b")
             self.delta_ke_label.config(text="")
+            self.stop_timer() # Ensure timer is stopped if force is insufficient
+            self.timer_label.config(text="00:00.00")
             return
 
-        self.feedback.config(
-            text=f"✅ Work={results['net_work']:.2f}J | v={results['v_final']:.2f}m/s | P={results['power']:.2f}W",
-            fg="#00ff00"
-        )
-        self.delta_ke_label.config(text=f"🔥 ΔKE = {results['ke_final']:.2f} J", fg="#ffaa00")
-
+        # Start animation if moves=True
         self.is_animating = True
         self.run_btn.config(state="disabled")
-        self.update_background(params)
+        self.feedback.config(text="▶ Simulating Motion...", fg="#00e6e6")
+        self.delta_ke_label.config(text=f"ΔKE (Net Work) = {results['ke_final']:.2f} J")
         
-        self.animation_thread = threading.Thread(target=self.animate_motion, args=(results,), daemon=True)
+        self.update_background(params)
+
+        # --- Timer Start Logic ---
+        self.sim_start_time = time.time()
+        self.is_timer_running = True
+        self.start_timer()
+        # -------------------------
+
+        # Start animation in a separate thread
+        self.animation_thread = threading.Thread(target=self.animate_motion, args=(results,))
         self.animation_thread.start()
+        
+    def stop_timer(self):
+        if self.timer_id:
+            self.root.after_cancel(self.timer_id)
+            self.timer_id = None
+        self.is_timer_running = False
 
     def stop_simulation(self):
         self.is_animating = False
         self.run_btn.config(state="normal")
         self.feedback.config(text="⏹ Stopped", fg="#ffaa00")
+        
+        # Timer stops and freezes on the current time
+        self.stop_timer()
 
     def reset_simulation(self):
         self.stop_simulation()
@@ -506,6 +589,9 @@ Push Modes:
         self.feedback.config(text="⚡ Ready!", fg="#aaffaa")
         self.delta_ke_label.config(text="")
         self.sim_data = {'distance': [], 'work': [], 'ke': []}
+        
+        # Reset timer label
+        self.timer_label.config(text="00:00.00")
 
     def update_background(self, params):
         self.canvas.delete("all")
@@ -539,7 +625,7 @@ Push Modes:
         elif scenario == "Inclined Plane":
             incline_height = min(math.tan(math.radians(angle)) * 700, 350)
             self.canvas.create_polygon(0, 450, 700, 450, 700, 450 - incline_height,
-                                      fill="#c7e9b4", outline="black", width=2)
+                                     fill="#c7e9b4", outline="black", width=2)
             self.canvas.create_text(600, 420, text=f"⛰️ θ={angle:.1f}°", fill="black", font=("Consolas", 11, "bold"))
             
             obj_y = 450 - (math.tan(math.radians(angle)) * 100) - 50
@@ -558,7 +644,7 @@ Push Modes:
             radius = 25
             cx, cy = x + radius, y + 25
             self.object = self.canvas.create_oval(cx - radius, cy - radius, cx + radius, cy + radius,
-                                                 fill=color, outline="black", width=2)
+                                                  fill=color, outline="black", width=2)
 
     def draw_force_vectors(self, params):
         if params['scenario'] != "Inclined Plane":
@@ -577,19 +663,19 @@ Push Modes:
         angle_rad = math.radians(angle)
 
         self.canvas.create_line(x_center, y_center, x_center, y_center + length,
-                               arrow=tk.LAST, fill="green", width=3)
+                                 arrow=tk.LAST, fill="green", width=3)
         self.canvas.create_text(x_center + 30, y_center + length, text="Fg", fill="green", font=("Consolas", 9, "bold"))
 
         fn_dx = -length * math.sin(angle_rad)
         fn_dy = -length * math.cos(angle_rad)
         self.canvas.create_line(x_center, y_center, x_center + fn_dx, y_center + fn_dy,
-                               arrow=tk.LAST, fill="orange", width=3)
+                                 arrow=tk.LAST, fill="orange", width=3)
         self.canvas.create_text(x_center + fn_dx - 15, y_center + fn_dy, text="Fn", fill="orange", font=("Consolas", 9, "bold"))
 
         f_dx = length * math.cos(angle_rad)
         f_dy = -length * math.sin(angle_rad)
         self.canvas.create_line(x_center, y_center, x_center + f_dx, y_center + f_dy,
-                               arrow=tk.LAST, fill="#00e6e6", width=3)
+                                 arrow=tk.LAST, fill="#00e6e6", width=3)
         self.canvas.create_text(x_center + f_dx + 20, y_center + f_dy, text="F", fill="#00e6e6", font=("Consolas", 9, "bold"))
 
     def animate_motion(self, results):
@@ -629,8 +715,13 @@ Push Modes:
             time.sleep(0.02 * speed_factor)
         
         self.draw_ke_indicator()
+        
+        # Stop the timer when animation thread completes normally
+        self.stop_timer()
+
         self.is_animating = False
         self.run_btn.config(state="normal")
+        self.feedback.config(text="✅ Simulation Complete!", fg="#98c379")
 
     def _move_object(self, dx, dy):
         if isinstance(self.object, list):
@@ -657,7 +748,7 @@ Push Modes:
         if "=" in ke_text:
             ke_val = ke_text.split("=")[1].strip().split()[0]
             self.canvas.create_text((x1 + x2) / 2, y + 15, text=f"ΔKE={ke_val}J",
-                                   fill="#ffaa00", font=("Consolas", 11, "bold"), tags="ke_text")
+                                     fill="#ffaa00", font=("Consolas", 11, "bold"), tags="ke_text")
     def start_quiz(self):
         ForceQuestQuiz(self.root)
 
@@ -668,22 +759,26 @@ Push Modes:
                 return
                 
             results = self.calculate_physics(params)
-            if not results or not results['moves']:
+            # Use the more reliable key 'net_work' from the calculated results
+            if not results or not results['moves'] or 'net_work' not in results:
                 messagebox.showerror("Error", "Run a successful simulation first!")
                 return
             
             d = params['d']
-            net_force = results['F_req']
+            F_req = results['F_req']
             F = params['F']
             
+            # The net force is F - F_req (when force is applied horizontally)
+            net_force = F - F_req
+            
             x = np.linspace(0, d, 50)
-            work = (F - net_force) * x
-            ke = work
+            work = net_force * x
+            ke = work # W_net = ΔKE
             
             plt.figure(figsize=(10, 6))
-            plt.plot(x, work, 'b-', linewidth=2, label='Net Work')
-            plt.plot(x, ke, 'r--', linewidth=2, label='Kinetic Energy')
-            plt.title('Energy vs Distance', fontsize=14, fontweight='bold')
+            plt.plot(x, work, 'b-', linewidth=2, label='Net Work (W_net)')
+            plt.plot(x, ke, 'r--', linewidth=2, label='Kinetic Energy (ΔKE)')
+            plt.title('Energy vs Distance (Work-Energy Theorem)', fontsize=14, fontweight='bold')
             plt.xlabel('Distance (m)', fontsize=12)
             plt.ylabel('Energy (J)', fontsize=12)
             plt.grid(True, alpha=0.3)
@@ -692,13 +787,10 @@ Push Modes:
             plt.show()
             
         except Exception as e:
+            # Catching generic errors in plotting (like missing numpy/matplotlib data)
             messagebox.showerror("Error", f"Could not generate graph: {str(e)}")
-    # New method to launch the quiz window
-   
 
 if __name__ == "__main__":
     root = tk.Tk()
     app = ForceQuestApp(root)
     root.mainloop()
-
-    
