@@ -5,6 +5,158 @@ import time
 import threading
 import numpy as np
 import matplotlib.pyplot as plt
+import random # Make sure to add this import at the top of your file
+
+class ForceQuestQuiz:
+    def __init__(self, master):
+        self.master = master
+        self.score = 0
+        self.current_question = 0
+        self.question_pool = QUIZ_QUESTIONS.copy()
+        
+        # Shuffle questions for randomization
+        random.shuffle(self.question_pool) 
+        
+        # Create the new window (Toplevel)
+        self.quiz_window = tk.Toplevel(master)
+        self.quiz_window.title("💡 ForceQuest Quiz Time!")
+        self.quiz_window.geometry("800x600")
+        self.quiz_window.configure(bg="#1e1e2f")
+        self.quiz_window.grab_set() # Forces user to interact with the quiz window
+        
+        self.style = ttk.Style()
+        self.style.configure("Quiz.TButton", font=("Segoe UI", 12, "bold"), padding=10, 
+                            background="#3e82e5", foreground="black")
+
+        self.setup_quiz_ui()
+        self.load_question()
+
+    def setup_quiz_ui(self):
+        # --- Header ---
+        header_frame = tk.Frame(self.quiz_window, bg="#1e1e2f", pady=10)
+        header_frame.pack(fill='x')
+        
+        tk.Label(header_frame, text="FORCEQUEST QUIZ", font=("Consolas", 20, "bold"), 
+                 bg="#1e1e2f", fg="#00e6e6").pack()
+        
+        self.score_label = tk.Label(header_frame, text="Score: 0", font=("Segoe UI", 12, "bold"), 
+                                    bg="#1e1e2f", fg="#98c379")
+        self.score_label.pack()
+
+        # --- Question Area ---
+        question_frame = tk.Frame(self.quiz_window, bg="#252540", pady=30, padx=20)
+        question_frame.pack(pady=20, padx=20, fill='both', expand=True)
+
+        self.question_label = tk.Label(question_frame, text="Question text goes here...", 
+                                       font=("Segoe UI", 16), bg="#252540", fg="white", 
+                                       wraplength=700)
+        self.question_label.pack(pady=10)
+
+        # --- Choices Area ---
+        self.choice_frame = tk.Frame(question_frame, bg="#252540")
+        self.choice_frame.pack(pady=20)
+        
+        self.selected_choice = tk.StringVar()
+        self.choice_buttons = []
+
+        # Create 4 choice buttons
+        for i in range(4):
+            btn = ttk.Button(self.choice_frame, text=f"Choice {i+1}", style="Quiz.TButton",
+                             command=lambda i=i: self.check_answer(self.choice_buttons[i].cget("text")))
+            btn.grid(row=i // 2, column=i % 2, padx=10, pady=10, ipadx=50, ipady=10, sticky="ew")
+            self.choice_buttons.append(btn)
+            
+        # Ensure grid columns can expand
+        self.choice_frame.grid_columnconfigure(0, weight=1)
+        self.choice_frame.grid_columnconfigure(1, weight=1)
+
+    def load_question(self):
+        if self.current_question >= len(self.question_pool):
+            self.show_results()
+            return
+
+        q_data = self.question_pool[self.current_question]
+        self.question_label.config(text=f"Q{self.current_question + 1}: {q_data['q']}")
+        
+        choices = q_data['choices']
+        random.shuffle(choices) # Shuffle choices for each question
+        
+        for i, choice in enumerate(choices):
+            self.choice_buttons[i].config(text=choice, state='normal')
+
+    def check_answer(self, user_answer):
+        q_data = self.question_pool[self.current_question]
+        correct_answer = q_data['ans']
+        
+        is_correct = (user_answer == correct_answer)
+
+        # Configure styles for immediate feedback (must be done here)
+        self.style.configure("Correct.TButton", background="#98c379", foreground="black")
+        self.style.configure("Incorrect.TButton", background="#ff6b6b", foreground="white")
+
+        # Visually indicate correct/incorrect answer
+        for btn in self.choice_buttons:
+            if btn.cget("text") == correct_answer:
+                btn.config(style="Correct.TButton")
+            else:
+                btn.config(style="Incorrect.TButton")
+            btn.config(state='disabled') # Disable buttons after selection
+
+        # Scoring Logic
+        if is_correct:
+            self.score += 1
+            self.score_label.config(text=f"Score: {self.score} - Correct!")
+        else:
+            self.score_label.config(text=f"Score: {self.score} - Incorrect.")
+
+        # Move to next question after a brief delay
+        self.quiz_window.after(1000, self.next_question)
+
+    def next_question(self):
+        # Reset button styles to default quiz style
+        for btn in self.choice_buttons:
+            btn.config(style="Quiz.TButton")
+
+        self.current_question += 1
+        self.load_question()
+
+    def show_results(self):
+        total = len(self.question_pool)
+        messagebox.showinfo(
+            "Quiz Complete! 🎉", 
+            f"You finished the quiz!\n\nFinal Score: {self.score} out of {total}.", 
+            parent=self.quiz_window
+        )
+        self.quiz_window.destroy()
+
+# --- Question Data ---
+QUIZ_QUESTIONS = [
+    {
+        "q": "What is the unit of Work?",
+        "ans": "Joule (J)",
+        "choices": ["Watt (W)", "Newton (N)", "Joule (J)", "Pascal (Pa)"]
+    },
+    {
+        "q": "Which theorem relates Net Work done to the change in Kinetic Energy?",
+        "ans": "Work-Energy Theorem",
+        "choices": ["Newton's Second Law", "Work-Energy Theorem", "Conservation of Momentum", "Ohm's Law"]
+    },
+    {
+        "q": "If you push an object horizontally over a distance (d) with a constant force (F), what is the Work done?",
+        "ans": "W = F × d",
+        "choices": ["W = F + d", "W = F / d", "W = F × d", "W = F × d × cos(θ)"]
+    },
+    {
+        "q": "What is the formula for Kinetic Energy?",
+        "ans": "$KE = 1/2 mv^2$",
+        "choices": ["$PE = mgh$", "$KE = mv$", "$KE = 1/2 mv^2$", "$P = W/t$"]
+    },
+    {
+        "q": "If you double the velocity of an object, its Kinetic Energy increases by a factor of:",
+        "ans": "Four",
+        "choices": ["Two", "Four", "Eight", "Half"]
+    },
+]
 
 
 class ForceQuestApp:
@@ -88,7 +240,7 @@ class ForceQuestApp:
 
         btn_frame = tk.Frame(left, bg="#252540")
         btn_frame.grid(row=row_base + 5, column=0, columnspan=2, pady=10)
-        
+    
         self.run_btn = tk.Button(btn_frame, text="▶ Run Simulation", bg="#00e6e6", fg="black", 
                                 font=("Segoe UI", 10, "bold"), command=self.run_simulation, width=20)
         self.run_btn.pack(pady=5)
@@ -101,7 +253,10 @@ class ForceQuestApp:
         
         tk.Button(btn_frame, text="🔄 Reset", bg="#61afef", fg="black",
                  font=("Segoe UI", 10, "bold"), command=self.reset_simulation, width=20).pack(pady=5)
-
+        # INSERT THIS NEW BUTTON BELOW:
+        tk.Button(btn_frame, text="✅ Start Physics Quiz", bg="#ffaa00", fg="black",
+                  font=("Segoe UI", 10, "bold"), command=self.start_quiz, width=20, height = 5).pack(pady=5)
+        
         # Center Canvas
         center = tk.Frame(main_frame, bg="#1e1e2f")
         center.grid(row=0, column=1, padx=20, sticky="nsew")
@@ -139,10 +294,10 @@ class ForceQuestApp:
         instructions = tk.Text(right, width=35, height=35, bg="#252540", fg="white", 
                               font=("Segoe UI", 9), wrap="word", bd=0)
         instructions.pack(padx=10, pady=5)
-        instructions.insert("1.0", """1️⃣ Choose scenario
-2️⃣ Enter values (leave ONE blank)
-3️⃣ Customize parameters
-4️⃣ Click ▶ Run Simulation
+        instructions.insert("1.0", """1️ Choose scenario
+2️ Enter values (leave ONE blank)
+3️ Customize parameters
+4️Click ▶ Run Simulation
 
 Surface Friction (μ):
 • Ice: 0.1 (slippery)
@@ -173,7 +328,7 @@ Push Modes:
 
         self.object = None
         self.reset_canvas()
-
+    
     def reset_canvas(self):
         self.canvas.delete("all")
         self.canvas.create_rectangle(0, 400, 700, 450, fill="#ddd", outline="")
@@ -503,6 +658,8 @@ Push Modes:
             ke_val = ke_text.split("=")[1].strip().split()[0]
             self.canvas.create_text((x1 + x2) / 2, y + 15, text=f"ΔKE={ke_val}J",
                                    fill="#ffaa00", font=("Consolas", 11, "bold"), tags="ke_text")
+    def start_quiz(self):
+        ForceQuestQuiz(self.root)
 
     def show_plot(self):
         try:
@@ -536,9 +693,12 @@ Push Modes:
             
         except Exception as e:
             messagebox.showerror("Error", f"Could not generate graph: {str(e)}")
-
+    # New method to launch the quiz window
+   
 
 if __name__ == "__main__":
     root = tk.Tk()
     app = ForceQuestApp(root)
     root.mainloop()
+
+    
