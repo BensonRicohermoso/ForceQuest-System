@@ -6,6 +6,8 @@ import threading
 import numpy as np
 import matplotlib.pyplot as plt
 import random 
+import os
+from PIL import Image, ImageTk
 
 class ForceQuestQuiz:
     def __init__(self, master):
@@ -160,6 +162,40 @@ QUIZ_QUESTIONS = [
 
 
 class ForceQuestApp:
+    def load_images(self):
+        """Load and prepare images for use on the tkinter Canvas.
+
+        - Loads surface background images from the `images/` folder.
+        - Resizes them to fit the canvas (700x450) and converts to PhotoImage.
+        - Stores PhotoImage references on `self.images` to prevent GC.
+        """
+        self.images = {}
+        # Map surface names used in the UI to filenames in the repository
+        surface_files = {
+            "Ice": "ice.png",
+            "Tile": "tiles.png",
+            "Wood": "wood.png",
+            "Concrete": "concrete.png",
+            "Sand": "sand.jpg",
+        }
+
+        canvas_w, canvas_h = 700, 450
+
+        for surface, fname in surface_files.items():
+            # images are stored in the `images/background/` folder
+            path = os.path.join(os.path.dirname(__file__), 'images', 'background', fname)
+            try:
+                if os.path.exists(path):
+                    img = Image.open(path).convert("RGBA")
+                    img = img.resize((canvas_w, canvas_h), Image.LANCZOS)
+                    self.images[surface] = ImageTk.PhotoImage(img)
+                else:
+                    self.images[surface] = None
+            except Exception as e:
+                print(f"⚠ Error loading image '{path}': {e}")
+                self.images[surface] = None
+
+
     def __init__(self, root):
         self.root = root
         self.root.title("⚙️ ForceQuest — Physics Adventure Mode")
@@ -173,7 +209,13 @@ class ForceQuestApp:
         self.is_timer_running = False
         self.sim_start_time = 0.0
         self.timer_id = None
-        
+
+        # Load image assets (Pillow + ImageTk)
+        try:
+            self.load_images()
+        except Exception:
+            self.images = {}
+
         self.setup_ui()
 
     def setup_ui(self):
@@ -599,35 +641,101 @@ Push Modes:
         angle = params['angle']
         mu = params['mu']
         shape = params['shape']
+        # Try to use a background image for the current surface if available
+        surface_name = params.get('surface', self.surface_material.get())
+        bg_image = None
+        if hasattr(self, 'images') and surface_name in self.images:
+            bg_image = self.images.get(surface_name)
 
         if scenario == "Pushing Object":
-            if mu <= 0.15:
-                color, label = "#b3e5fc", "❄️ ICE"
-            elif mu <= 0.35:
-                color, label = "#f0f0f0", "🏠 TILE"
-            elif mu <= 0.6:
-                color, label = "#deb887", "🪵 WOOD"
-            elif mu <= 0.8:
-                color, label = "#a9a9a9", "🏗️ CONCRETE"
-            else:
-                color, label = "#e69f00", "🏖️ SAND"
+            if bg_image:
+                # draw the background image and keep a reference to avoid GC
+                bg_id = self.canvas.create_image(0, 0, anchor='nw', image=bg_image)
+                # ensure background image is at the very bottom of the stacking order
+                try:
+                    self.canvas.tag_lower(bg_id)
+                except Exception:
+                    pass
+                self._current_bg = bg_image
+                # preserve original ground color (based on surface) instead of dark overlay
+                if mu <= 0.15:
+                    color, label = "#b3e5fc", "❄️ ICE"
+                elif mu <= 0.35:    
+                    color, label = "#2976b9", "🏠 TILE"
+                elif mu <= 0.6:
+                    color, label = "#9a794e", "🪵 WOOD"
+                elif mu <= 0.8:
+                    color, label = "#844848", "🏗️ CONCRETE"
+                else:
+                    color, label = "#c2a464", "🏖️ SAND"
 
-            self.canvas.create_rectangle(0, 400, 700, 450, fill=color, outline="black")
-            self.canvas.create_text(600, 420, text=f"{label}", fill="black", font=("Consolas", 11, "bold"))
+                # draw ground rectangle with the original color so it doesn't change
+                self.canvas.create_rectangle(0, 400, 700, 450, fill=color, outline="black")
+                # label text on the ground
+                self.canvas.create_text(600, 420, text=f"{label}", fill="black", font=("Consolas", 11, "bold"))
+            else:
+                # fallback to color coding when no image exists
+                if mu <= 0.15:
+                    color, label = "#b3e5fc", "❄️ ICE"
+                elif mu <= 0.35:
+                    color, label = "#f0f0f0", "🏠 TILE"
+                elif mu <= 0.6:
+                    color, label = "#deb887", "🪵 WOOD"
+                elif mu <= 0.8:
+                    color, label = "#a9a9a9", "🏗️ CONCRETE"
+                else:
+                    color, label = "#e69f00", "🏖️ SAND"
+
+                self.canvas.create_rectangle(0, 400, 700, 450, fill=color, outline="black")
+                self.canvas.create_text(600, 420, text=f"{label}", fill="black", font=("Consolas", 11, "bold"))
+
             self.draw_object(50, 350, shape, "#73ff61")
 
         elif scenario == "Lifting Object":
-            self.canvas.create_rectangle(0, 400, 700, 450, fill="#9ecae1", outline="")
+            if bg_image:
+                bg_id = self.canvas.create_image(0, 0, anchor='nw', image=bg_image)
+                try:
+                    self.canvas.tag_lower(bg_id)
+                except Exception:
+                    pass
+                self._current_bg = bg_image
+            else:
+                self.canvas.create_rectangle(0, 400, 700, 450, fill="#9ecae1", outline="")
             self.canvas.create_line(340, 50, 340, 400, fill="#666", width=4)
             self.canvas.create_text(600, 420, text="🏗️ CRANE", fill="black", font=("Consolas", 11, "bold"))
             self.draw_object(315, 350, shape, "#73ff61")
 
         elif scenario == "Inclined Plane":
+            # determine surface color/label based on chosen surface (keep consistent)
+            if surface_name == "Ice":
+                surf_color, surf_label = "#b3e5fc", "❄️ ICE"
+            elif surface_name == "Tile":
+                surf_color, surf_label = "#65aade", "🏠 TILE"
+            elif surface_name == "Wood":
+                surf_color, surf_label = "#705b40", "🪵 WOOD"
+            elif surface_name == "Concrete":
+                surf_color, surf_label = "#6e5d5d", "🏗️ CONCRETE"
+            else:
+                surf_color, surf_label = "#a0864e", "🏖️ SAND"
+
             incline_height = min(math.tan(math.radians(angle)) * 700, 350)
-            self.canvas.create_polygon(0, 450, 700, 450, 700, 450 - incline_height,
-                                     fill="#c7e9b4", outline="black", width=2)
+
+            if bg_image:
+                bg_id = self.canvas.create_image(0, 0, anchor='nw', image=bg_image)
+                try:
+                    self.canvas.tag_lower(bg_id)
+                except Exception:
+                    pass
+                self._current_bg = bg_image
+                # draw the incline surface on top of the background using the surface color
+                self.canvas.create_polygon(0, 450, 700, 450, 700, 450 - incline_height,
+                                           fill=surf_color, outline="black", width=2)
+            else:
+                self.canvas.create_polygon(0, 450, 700, 450, 700, 450 - incline_height,
+                                           fill=surf_color, outline="black", width=2)
+
+            # draw angle label and object
             self.canvas.create_text(600, 420, text=f"⛰️ θ={angle:.1f}°", fill="black", font=("Consolas", 11, "bold"))
-            
             obj_y = 450 - (math.tan(math.radians(angle)) * 100) - 50
             self.draw_object(50, obj_y, shape, "#73ff61")
             self.draw_force_vectors(params)
