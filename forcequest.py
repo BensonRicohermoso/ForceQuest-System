@@ -3,8 +3,6 @@ from tkinter import ttk, messagebox
 import math
 import time
 import threading
-import numpy as np
-import matplotlib.pyplot as plt
 import random 
 import os
 from PIL import Image, ImageTk
@@ -21,7 +19,7 @@ class ForceQuestQuiz:
         
         # Create the new window (Toplevel)
         self.quiz_window = tk.Toplevel(master)
-        self.quiz_window.title("💡 ForceQuest Quiz Time!")
+        self.quiz_window.title("💡 P6Quest Quiz Time!")
         self.quiz_window.geometry("800x600")
         self.quiz_window.configure(bg="#1e1e2f")
         self.quiz_window.grab_set() # Forces user to interact with the quiz window
@@ -38,7 +36,7 @@ class ForceQuestQuiz:
         header_frame = tk.Frame(self.quiz_window, bg="#1e1e2f", pady=10)
         header_frame.pack(fill='x')
         
-        tk.Label(header_frame, text="FORCEQUEST QUIZ", font=("Consolas", 20, "bold"), 
+        tk.Label(header_frame, text="P6QUEST QUIZ", font=("Consolas", 20, "bold"), 
                  bg="#1e1e2f", fg="#00e6e6").pack()
         
         self.score_label = tk.Label(header_frame, text="Score: 0", font=("Segoe UI", 12, "bold"), 
@@ -179,7 +177,7 @@ class ForceQuestApp:
             "Sand": "sand.jpg",
         }
 
-        canvas_w, canvas_h = 700, 450
+        canvas_w, canvas_h = 800, 450
 
         for surface, fname in surface_files.items():
             # images are stored in the `images/background/` folder
@@ -198,7 +196,7 @@ class ForceQuestApp:
 
     def __init__(self, root):
         self.root = root
-        self.root.title("⚙️ ForceQuest — Physics Adventure Mode")
+        self.root.title("⚙️ P6Quest — Physics Adventure Mode")
         self.root.geometry("1400x1000")
         self.root.configure(bg="#1e1e2f")
         self.is_animating = False
@@ -209,6 +207,12 @@ class ForceQuestApp:
         self.is_timer_running = False
         self.sim_start_time = 0.0
         self.timer_id = None
+        
+        # Real-time graph attributes
+        self.graph_data = {'distance': [], 'work': [], 'ke': []}
+        self.current_distance = 0.0
+        self.max_distance = 1.0
+        self.max_energy = 1.0
 
         # Load image assets (Pillow + ImageTk)
         try:
@@ -219,7 +223,7 @@ class ForceQuestApp:
         self.setup_ui()
 
     def setup_ui(self):
-        title = tk.Label(self.root, text="FORCEQUEST", fg="#00e6e6",
+        title = tk.Label(self.root, text="P6QUEST", fg="#00e6e6",
                          bg="#1e1e2f", font=("Consolas", 28, "bold"))
         title.pack(pady=10)
 
@@ -296,8 +300,6 @@ class ForceQuestApp:
         tk.Button(btn_frame, text="⏹ Stop", bg="#ff6b6b", fg="white",
                   font=("Segoe UI", 10, "bold"), command=self.stop_simulation, width=20).pack(pady=5)
         
-        tk.Button(btn_frame, text="📊 Show Energy Graph", bg="#98c379", fg="black",
-                  font=("Segoe UI", 10, "bold"), command=self.show_plot, width=20).pack(pady=5)
         
         tk.Button(btn_frame, text="🔄 Reset", bg="#61afef", fg="black",
                   font=("Segoe UI", 10, "bold"), command=self.reset_simulation, width=20).pack(pady=5)
@@ -305,9 +307,34 @@ class ForceQuestApp:
         tk.Button(btn_frame, text="✅ Start Physics Quiz", bg="#ffaa00", fg="black",
                   font=("Segoe UI", 10, "bold"), command=self.start_quiz, width=20, height = 5).pack(pady=5)
         
-        # Center Canvas
-        center = tk.Frame(main_frame, bg="#1e1e2f")
-        center.grid(row=0, column=1, padx=20, sticky="nsew")
+        # Center Panel with Scrollable Canvas
+        center_container = tk.Frame(main_frame, bg="#1e1e2f")
+        center_container.grid(row=0, column=1, padx=(20, 50), sticky="nsew")
+        
+        # Create canvas for scrolling
+        center_canvas = tk.Canvas(center_container, bg="#1e1e2f", highlightthickness=0)
+        center_scrollbar = tk.Scrollbar(center_container, orient="vertical", command=center_canvas.yview)
+        
+        # Scrollable frame inside canvas
+        center = tk.Frame(center_canvas, bg="#1e1e2f")
+        
+        # Configure scrolling
+        center.bind(
+            "<Configure>",
+            lambda e: center_canvas.configure(scrollregion=center_canvas.bbox("all"))
+        )
+        
+        center_canvas.create_window((0, 0), window=center, anchor="nw")
+        center_canvas.configure(yscrollcommand=center_scrollbar.set)
+        
+        # Pack scrollbar and canvas
+        center_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        center_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # Enable mousewheel scrolling
+        def _on_mousewheel(event):
+            center_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        center_canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
         # --- UPDATED: Single Timer Label (Top Right) ---
         timer_frame = tk.Frame(center, bg="#1e1e2f")
@@ -318,28 +345,39 @@ class ForceQuestApp:
         self.timer_label.pack(side=tk.LEFT, padx=(5, 0)) 
         # --------------------------------------------------
 
-        self.canvas = tk.Canvas(center, width=700, height=450, bg="white", highlightthickness=2,
+        self.canvas = tk.Canvas(center, width=800, height=450, bg="white", highlightthickness=2,
                                highlightbackground="#00e6e6")
-        self.canvas.pack()
+        self.canvas.pack(padx=(0, 50))
 
         self.feedback = tk.Label(center, text="⚡ Ready to simulate!", bg="#1e1e2f", fg="#aaffaa", 
                                  font=("Consolas", 12, "bold"))
-        self.feedback.pack(pady=5)
+        self.feedback.pack(pady=5, padx=(0, 50))
 
         self.delta_ke_label = tk.Label(center, text="", bg="#1e1e2f", fg="#ffaa00", 
                                         font=("Consolas", 11, "bold"))
-        self.delta_ke_label.pack(pady=5)
+        self.delta_ke_label.pack(pady=5, padx=(0, 50))
 
         solution_frame = tk.Frame(center, bg="#1e1e2f")
-        solution_frame.pack(pady=5, fill=tk.BOTH, expand=True)
+        solution_frame.pack(pady=5, fill=tk.BOTH, expand=True, padx=(0, 50))
         
         scrollbar = tk.Scrollbar(solution_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        self.solution_box = tk.Text(solution_frame, width=85, height=20, bg="#111", fg="#98c379",
+        self.solution_box = tk.Text(solution_frame, width=85, height=15, bg="#111", fg="#98c379",
                                      font=("Consolas", 10), wrap="word", yscrollcommand=scrollbar.set)
         self.solution_box.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.config(command=self.solution_box.yview)
+        
+        # === REAL-TIME ENERGY GRAPH ===
+        graph_label = tk.Label(center, text="📊 Real-Time Energy Graph", bg="#1e1e2f", 
+                               fg="#00e6e6", font=("Segoe UI", 11, "bold"))
+        graph_label.pack(pady=(10, 5), padx=(0, 50))
+        
+        # Graph canvas
+        self.graph_canvas = tk.Canvas(center, width=800, height=250, bg="white", 
+                                      highlightthickness=2, highlightbackground="#00e6e6")
+        self.graph_canvas.pack(pady=(5, 10), padx=(0, 50))
+        self.init_graph()
 
         # Right Panel
         right = tk.Frame(main_frame, bg="#252540", bd=2, relief="ridge")
@@ -390,9 +428,107 @@ Push Modes:
     
     def reset_canvas(self):
         self.canvas.delete("all")
-        self.canvas.create_rectangle(0, 400, 700, 450, fill="#ddd", outline="")
-        self.canvas.create_text(350, 425, text="Ground Level", fill="#666", font=("Consolas", 10))
+        self.canvas.create_rectangle(0, 400, 800, 450, fill="#ddd", outline="")
+        self.canvas.create_text(400, 425, text="Ground Level", fill="#666", font=("Consolas", 10))
         self.object = None
+    
+    def init_graph(self):
+        """Initialize the energy graph with axes and labels"""
+        self.graph_canvas.delete("all")
+        
+        # Graph margins
+        margin_left = 60
+        margin_right = 30
+        margin_top = 20
+        margin_bottom = 40
+        
+        self.graph_width = 800 - margin_left - margin_right
+        self.graph_height = 250 - margin_top - margin_bottom
+        self.graph_x0 = margin_left
+        self.graph_y0 = margin_top
+        
+        # Draw axes
+        # Y-axis
+        self.graph_canvas.create_line(margin_left, margin_top, margin_left, 
+                                       250 - margin_bottom, fill="black", width=2)
+        # X-axis
+        self.graph_canvas.create_line(margin_left, 250 - margin_bottom, 
+                                       800 - margin_right, 250 - margin_bottom, fill="black", width=2)
+        
+        # Labels
+        self.graph_canvas.create_text(400, 240, text="Distance (m)", 
+                                       fill="#333", font=("Segoe UI", 9, "bold"))
+        self.graph_canvas.create_text(20, 135, text="Energy (J)", angle=90,
+                                       fill="#333", font=("Segoe UI", 9, "bold"))
+        
+        # Legend
+        self.graph_canvas.create_line(520, 15, 560, 15, fill="blue", width=2)
+        self.graph_canvas.create_text(600, 15, text="Net Work", fill="blue", 
+                                       font=("Segoe UI", 8, "bold"))
+        
+        self.graph_canvas.create_line(520, 35, 560, 35, fill="red", width=2, dash=(4, 2))
+        self.graph_canvas.create_text(605, 35, text="Kinetic Energy", fill="red", 
+                                       font=("Segoe UI", 8, "bold"))
+        
+        # Initial scale markers
+        self.graph_canvas.create_text(margin_left - 5, 250 - margin_bottom, text="0", 
+                                       anchor="e", fill="#666", font=("Consolas", 8))
+    
+    def update_graph(self, distance, work, ke):
+        """Update the real-time energy graph with new data point"""
+        # Add data point
+        self.graph_data['distance'].append(distance)
+        self.graph_data['work'].append(work)
+        self.graph_data['ke'].append(ke)
+        
+        # Update max values for scaling
+        if distance > self.max_distance:
+            self.max_distance = distance
+        if max(work, ke) > self.max_energy:
+            self.max_energy = max(work, ke)
+        
+        # Clear and redraw
+        self.graph_canvas.delete("plot_line")
+        self.graph_canvas.delete("scale")
+        
+        # Update scale markers
+        margin_left = 60
+        margin_bottom = 40
+        
+        # Y-axis scale
+        for i in range(5):
+            y_val = (self.max_energy / 4) * i
+            y_pos = (250 - margin_bottom) - (self.graph_height / 4) * i
+            self.graph_canvas.create_text(margin_left - 5, y_pos, text=f"{y_val:.1f}", 
+                                          anchor="e", fill="#666", font=("Consolas", 8), tags="scale")
+        
+        # X-axis scale
+        for i in range(5):
+            x_val = (self.max_distance / 4) * i
+            x_pos = margin_left + (self.graph_width / 4) * i
+            self.graph_canvas.create_text(x_pos, 250 - margin_bottom + 15, text=f"{x_val:.1f}", 
+                                          fill="#666", font=("Consolas", 8), tags="scale")
+        
+        # Plot data points
+        if len(self.graph_data['distance']) > 1:
+            # Plot Work line
+            for i in range(len(self.graph_data['distance']) - 1):
+                x1 = self.graph_x0 + (self.graph_data['distance'][i] / self.max_distance) * self.graph_width
+                y1 = self.graph_y0 + self.graph_height - (self.graph_data['work'][i] / self.max_energy) * self.graph_height
+                x2 = self.graph_x0 + (self.graph_data['distance'][i+1] / self.max_distance) * self.graph_width
+                y2 = self.graph_y0 + self.graph_height - (self.graph_data['work'][i+1] / self.max_energy) * self.graph_height
+                
+                self.graph_canvas.create_line(x1, y1, x2, y2, fill="blue", width=2, tags="plot_line")
+            
+            # Plot KE line
+            for i in range(len(self.graph_data['distance']) - 1):
+                x1 = self.graph_x0 + (self.graph_data['distance'][i] / self.max_distance) * self.graph_width
+                y1 = self.graph_y0 + self.graph_height - (self.graph_data['ke'][i] / self.max_energy) * self.graph_height
+                x2 = self.graph_x0 + (self.graph_data['distance'][i+1] / self.max_distance) * self.graph_width
+                y2 = self.graph_y0 + self.graph_height - (self.graph_data['ke'][i+1] / self.max_energy) * self.graph_height
+                
+                self.graph_canvas.create_line(x1, y1, x2, y2, fill="red", width=2, 
+                                              dash=(4, 2), tags="plot_line")
 
     def get_physics_params(self):
         try:
@@ -408,7 +544,7 @@ Push Modes:
         if d is None or d <= 0:
             messagebox.showerror("Input Error", "Distance must be positive!")
             return None
-
+        #shape and surface friction mapping
         surface_mu_map = {"Ice": 0.1, "Tile": 0.3, "Wood": 0.5, "Concrete": 0.7, "Sand": 0.9}
         shape_friction_factor = {"Box": 1.0, "Cylinder": 0.15, "Sphere": 0.05}
         
@@ -518,7 +654,7 @@ Push Modes:
         power = net_work / time_interval if time_interval > 0 else 0
 
         solution_data += f"📋 Given:\n \n"
-        solution_data += f"   m = {m:.2f} kg | F = {F:.2f} N | d = {d:.2f} m\n"
+        solution_data += f"   m = {m:.2f} kg | F = {F:.2f} N | d = {d:.2f} m  |"
         solution_data += f"   μ = {mu:.3f}\n\n\n"
         solution_data += f"⚖️ Forces:\n \n"
         solution_data += f"   Weight = {weight:.2f} N |\t"
@@ -572,11 +708,11 @@ Push Modes:
         
         # Combine the header/footer with the solution data
         full_output = (
-            f"{'='*125}\n"
+            f"{'='*110}\n"
             f"PHYSICS CALCULATION\n"
-            f"{'='*125}\n\n"
+            f"{'='*110}\n\n"
             f"{results['solution']} \n \n \n"
-            f"{'='*125}\n"
+            f"{'='*110}"
         )
         
         # Insert the full output block
@@ -592,6 +728,13 @@ Push Modes:
             self.timer_label.config(text="00:00.00")
             return
 
+        # Reset graph data for new simulation
+        self.graph_data = {'distance': [], 'work': [], 'ke': []}
+        self.current_distance = 0.0
+        self.max_distance = params['d']
+        self.max_energy = max(results['net_work'], results['ke_final']) * 1.1  # 10% padding
+        self.init_graph()
+        
         # Start animation if moves=True
         self.is_animating = True
         self.run_btn.config(state="disabled")
@@ -632,6 +775,13 @@ Push Modes:
         self.delta_ke_label.config(text="")
         self.sim_data = {'distance': [], 'work': [], 'ke': []}
         
+        # Reset graph
+        self.graph_data = {'distance': [], 'work': [], 'ke': []}
+        self.current_distance = 0.0
+        self.max_distance = 1.0
+        self.max_energy = 1.0
+        self.init_graph()
+        
         # Reset timer label
         self.timer_label.config(text="00:00.00")
 
@@ -657,37 +807,36 @@ Push Modes:
                 except Exception:
                     pass
                 self._current_bg = bg_image
-                # preserve original ground color (based on surface) instead of dark overlay
-                if mu <= 0.15:
+                # choose ground color/label based on the selected surface (ignore shape-modified mu)
+                if surface_name == "Ice":
                     color, label = "#b3e5fc", "❄️ ICE"
-                elif mu <= 0.35:    
-                    color, label = "#2976b9", "🏠 TILE"
-                elif mu <= 0.6:
-                    color, label = "#9a794e", "🪵 WOOD"
-                elif mu <= 0.8:
-                    color, label = "#844848", "🏗️ CONCRETE"
-                else:
-                    color, label = "#c2a464", "🏖️ SAND"
-
-                # draw ground rectangle with the original color so it doesn't change
-                self.canvas.create_rectangle(0, 400, 700, 450, fill=color, outline="black")
-                # label text on the ground
-                self.canvas.create_text(600, 420, text=f"{label}", fill="black", font=("Consolas", 11, "bold"))
-            else:
-                # fallback to color coding when no image exists
-                if mu <= 0.15:
-                    color, label = "#b3e5fc", "❄️ ICE"
-                elif mu <= 0.35:
-                    color, label = "#f0f0f0", "🏠 TILE"
-                elif mu <= 0.6:
-                    color, label = "#deb887", "🪵 WOOD"
-                elif mu <= 0.8:
-                    color, label = "#a9a9a9", "🏗️ CONCRETE"
+                elif surface_name == "Tile":
+                    color, label = "#65aade", "🏠 TILE"
+                elif surface_name == "Wood":
+                    color, label = "#705b40", "🪵 WOOD"
+                elif surface_name == "Concrete":
+                    color, label = "#6e5d5d", "🏗️ CONCRETE"
                 else:
                     color, label = "#e69f00", "🏖️ SAND"
 
-                self.canvas.create_rectangle(0, 400, 700, 450, fill=color, outline="black")
-                self.canvas.create_text(600, 420, text=f"{label}", fill="black", font=("Consolas", 11, "bold"))
+                # draw ground rectangle with the original surface color
+                self.canvas.create_rectangle(0, 400, 800, 450, fill=color, outline="black")
+                self.canvas.create_text(700, 420, text=f"{label}", fill="black", font=("Consolas", 11, "bold"))
+            else:
+                # fallback to color coding based on selected surface
+                if surface_name == "Ice":
+                    color, label = "#b3e5fc", "❄️ ICE"
+                elif surface_name == "Tile":
+                    color, label = "#65aade", "🏠 TILE"
+                elif surface_name == "Wood":
+                    color, label = "#705b40", "🪵 WOOD"
+                elif surface_name == "Concrete":
+                    color, label = "#6e5d5d", "🏗️ CONCRETE"
+                else:
+                    color, label = "#e69f00", "🏖️ SAND"
+
+                self.canvas.create_rectangle(0, 400, 800, 450, fill=color, outline="black")
+                self.canvas.create_text(700, 420, text=f"{label}", fill="black", font=("Consolas", 11, "bold"))
 
             self.draw_object(50, 350, shape, "#73ff61")
 
@@ -700,10 +849,10 @@ Push Modes:
                     pass
                 self._current_bg = bg_image
             else:
-                self.canvas.create_rectangle(0, 400, 700, 450, fill="#9ecae1", outline="")
-            self.canvas.create_line(340, 50, 340, 400, fill="#666", width=4)
-            self.canvas.create_text(600, 420, text="🏗️ CRANE", fill="black", font=("Consolas", 11, "bold"))
-            self.draw_object(315, 350, shape, "#73ff61")
+                self.canvas.create_rectangle(0, 400, 800, 450, fill="#9ecae1", outline="")
+            self.canvas.create_line(390, 50, 390, 400, fill="#666", width=4)
+            self.canvas.create_text(700, 420, text="🏗️ CRANE", fill="black", font=("Consolas", 11, "bold"))
+            self.draw_object(365, 350, shape, "#73ff61")
 
         elif scenario == "Inclined Plane":
             # determine surface color/label based on chosen surface (keep consistent)
@@ -716,9 +865,9 @@ Push Modes:
             elif surface_name == "Concrete":
                 surf_color, surf_label = "#6e5d5d", "🏗️ CONCRETE"
             else:
-                surf_color, surf_label = "#a0864e", "🏖️ SAND"
+                surf_color, surf_label = "#e69f00", "🏖️ SAND"
 
-            incline_height = min(math.tan(math.radians(angle)) * 700, 350)
+            incline_height = min(math.tan(math.radians(angle)) * 800, 350)
 
             if bg_image:
                 bg_id = self.canvas.create_image(0, 0, anchor='nw', image=bg_image)
@@ -728,14 +877,14 @@ Push Modes:
                     pass
                 self._current_bg = bg_image
                 # draw the incline surface on top of the background using the surface color
-                self.canvas.create_polygon(0, 450, 700, 450, 700, 450 - incline_height,
+                self.canvas.create_polygon(0, 450, 800, 450, 800, 450 - incline_height,
                                            fill=surf_color, outline="black", width=2)
             else:
-                self.canvas.create_polygon(0, 450, 700, 450, 700, 450 - incline_height,
+                self.canvas.create_polygon(0, 450, 800, 450, 800, 450 - incline_height,
                                            fill=surf_color, outline="black", width=2)
 
             # draw angle label and object
-            self.canvas.create_text(600, 420, text=f"⛰️ θ={angle:.1f}°", fill="black", font=("Consolas", 11, "bold"))
+            self.canvas.create_text(700, 420, text=f"⛰️ θ={angle:.1f}°", fill="black", font=("Consolas", 11, "bold"))
             obj_y = 450 - (math.tan(math.radians(angle)) * 100) - 50
             self.draw_object(50, obj_y, shape, "#73ff61")
             self.draw_force_vectors(params)
@@ -793,8 +942,14 @@ Push Modes:
         angle = params['angle']
         push_mode = params['push_mode']
         
+        # Calculate net force for work calculation
+        net_force = results['net_work'] / distance if distance > 0 else 0
+        
         steps = int(distance * 15)
         speed_factor = 1.0 / self.anim_speed.get()
+        
+        accumulated_distance = 0.0
+        distance_per_step = distance / steps if steps > 0 else 0
         
         for step in range(steps):
             if not self.is_animating:
@@ -806,6 +961,16 @@ Push Modes:
                 move_val = 20 if step < 5 else 0.5
             elif push_mode == "Increasing Force":
                 move_val = 2 + (step / steps) * 6
+            
+            # Update accumulated distance
+            accumulated_distance += distance_per_step
+            
+            # Calculate current work and KE
+            current_work = net_force * accumulated_distance
+            current_ke = current_work  # Work-Energy Theorem
+            
+            # Update graph in real-time
+            self.update_graph(accumulated_distance, current_work, current_ke)
             
             if scenario == "Lifting Object":
                 self._move_object(0, -move_val)
@@ -859,44 +1024,6 @@ Push Modes:
                                      fill="#73ff61", font=("Consolas", 11, "bold"), tags="ke_text")
     def start_quiz(self):
         ForceQuestQuiz(self.root)
-
-    def show_plot(self):
-        try:
-            params = self.get_physics_params()
-            if not params:
-                return
-                
-            results = self.calculate_physics(params)
-            # Use the more reliable key 'net_work' from the calculated results
-            if not results or not results['moves'] or 'net_work' not in results:
-                messagebox.showerror("Error", "Run a successful simulation first!")
-                return
-            
-            d = params['d']
-            F_req = results['F_req']
-            F = params['F']
-            
-            # The net force is F - F_req (when force is applied horizontally)
-            net_force = F - F_req
-            
-            x = np.linspace(0, d, 50)
-            work = net_force * x
-            ke = work # W_net = ΔKE
-            
-            plt.figure(figsize=(10, 6))
-            plt.plot(x, work, 'b-', linewidth=2, label='Net Work (W_net)')
-            plt.plot(x, ke, 'r--', linewidth=2, label='Kinetic Energy (ΔKE)')
-            plt.title('Energy vs Distance (Work-Energy Theorem)', fontsize=14, fontweight='bold')
-            plt.xlabel('Distance (m)', fontsize=12)
-            plt.ylabel('Energy (J)', fontsize=12)
-            plt.grid(True, alpha=0.3)
-            plt.legend()
-            plt.tight_layout()
-            plt.show()
-            
-        except Exception as e:
-            # Catching generic errors in plotting (like missing numpy/matplotlib data)
-            messagebox.showerror("Error", f"Could not generate graph: {str(e)}")
 
 if __name__ == "__main__":
     root = tk.Tk()
