@@ -1,5 +1,5 @@
 """
-ForceQuest - Physics Simulation Application
+P6Quest - Physics Simulation Application
 Entry point for the application
 """
 import tkinter as tk

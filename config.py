@@ -4,9 +4,9 @@ Contains all constants, color schemes, and default values
 """
 
 # Application Settings
-APP_TITLE = "⚙️ ForceQuest — Physics Adventure Mode"
+APP_TITLE = "⚙️ P6Quest — Physics Adventure Mode"
 APP_GEOMETRY = "1400x1000"
-QUIZ_TITLE = "💡 ForceQuest Quiz Time!"
+QUIZ_TITLE = "💡 P6Quest Quiz Time!"
 QUIZ_GEOMETRY = "800x600"
 
 # Colors
@@ -98,6 +98,30 @@ OBJECT_COLORS = {
 DEFAULT_ANIMATION_SPEED = 1.0
 MIN_ANIMATION_SPEED = 0.5
 MAX_ANIMATION_SPEED = 3.0
+ANIMATION_DELAY = 0.02
+
+# Canvas Settings
+CANVAS = {
+    'width': 800,
+    'height': 450,
+    'ground_y': 400,
+    'ground_height': 50
+}
+
+# Scenarios
+SCENARIOS = ["Pushing Object", "Lifting Object", "Inclined Plane"]
+
+# Surface Materials
+SURFACE_MATERIALS = ["Ice", "Tile", "Wood", "Concrete", "Sand"]
+
+# Object Shapes
+OBJECT_SHAPES = ["Box", "Cylinder", "Sphere"]
+
+# Force Angles
+FORCE_ANGLES = ["Horizontal", "Upward", "Downward"]
+
+# Push Modes
+PUSH_MODES = ["Constant Force", "Sudden Push", "Increasing Force"]
 ANIMATION_DELAY = 0.02  # seconds
 
 # Canvas Settings

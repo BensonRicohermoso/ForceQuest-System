@@ -22,7 +22,7 @@ class ForceQuestQuiz:
         
         # Create the new window (Toplevel)
         self.quiz_window = tk.Toplevel(master)
-        self.quiz_window.title("💡 ForceQuest Quiz Time!")
+        self.quiz_window.title("💡 P6Quest Quiz Time!")
         self.quiz_window.geometry("800x600")
         self.quiz_window.configure(bg=COLORS['bg_primary'])
         self.quiz_window.grab_set()  # Forces user to interact with the quiz window
@@ -40,7 +40,7 @@ class ForceQuestQuiz:
         header_frame = tk.Frame(self.quiz_window, bg=COLORS['bg_primary'], pady=10)
         header_frame.pack(fill='x')
         
-        tk.Label(header_frame, text="FORCEQUEST QUIZ", font=FONTS['header'],
+        tk.Label(header_frame, text="P6QUEST QUIZ", font=FONTS['header'],
                  bg=COLORS['bg_primary'], fg=COLORS['accent_cyan']).pack()
         
         self.score_label = tk.Label(header_frame, text="Score: 0", font=FONTS['button'],
